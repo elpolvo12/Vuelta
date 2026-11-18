@@ -1,5 +1,5 @@
 'use strict';
-/* Q'vuelta – GTS Super 125 (2022). Alle Daten bleiben lokal im Browser (localStorage). */
+/* Vuelta – GTS Super 125 (2022). Alle Daten bleiben lokal im Browser (localStorage). */
 const KEY = 'vespa.logbuch.v1';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -127,9 +127,10 @@ async function fetchForecast() {
   if (fc && Date.now() - fc.at < 15 * 60e3) return;
   const p = db.settings.lastPos || { lat: 52.52, lon: 13.4 };
   try {
-    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m,weather_code&hourly=temperature_2m,precipitation&forecast_hours=4&timezone=auto');
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m,weather_code&hourly=temperature_2m,precipitation&forecast_hours=18&timezone=auto');
     const j = await r.json();
-    const warns = [], cur = j.current, h = j.hourly;
+    const warns = [], cur = j.current, hh = j.hourly;
+    const h = { time: hh.time.slice(0, 4), precipitation: hh.precipitation.slice(0, 4), temperature_2m: hh.temperature_2m.slice(0, 4) };
     const wet = weatherInfo(cur.weather_code).wet;
     const ri = h.precipitation.findIndex(x => x >= 0.2);
     if (ri >= 0) {
@@ -140,6 +141,18 @@ async function fetchForecast() {
     const anyWet = wet || h.precipitation.some(x => x >= 0.1);
     if (minT <= 3 && anyWet) warns.push({ lv: 'warn', icon: 'flake', t: 'Glättegefahr', d: nf(minT, 0) + ' °C · nasse Fahrbahn' });
     else if (minT <= 0) warns.push({ lv: 'warn', icon: 'flake', t: 'Frost', d: nf(minT, 0) + ' °C · Glätte möglich' });
+    /* Pendel-Hinweise: Regen zur Heimfahrt, Glätte morgen früh */
+    const nowD = new Date(), hr = nowD.getHours(), wd = nowD.getDay() >= 1 && nowD.getDay() <= 5;
+    const L = hh.time.map((t, i) => ({ t, hr: +t.slice(11, 13), d: t.slice(0, 10), p: hh.precipitation[i], T: hh.temperature_2m[i] }));
+    const today0 = hh.time[0].slice(0, 10);
+    if (wd && hr < 16 && !warns.some(w => w.icon === 'rain')) {
+      const ev = L.find(x => x.d === today0 && x.hr >= 16 && x.hr <= 19 && x.p >= 0.2);
+      if (ev) warns.push({ lv: 'warn', icon: 'rain', t: 'Heimfahrt: Regen ab ' + ev.t.slice(11, 16), d: 'Lieber früher losfahren oder Regenkombi mitnehmen' });
+    }
+    if (hr >= 17) {
+      const mo = L.filter(x => x.d !== today0 && x.hr >= 6 && x.hr <= 9);
+      if (mo.length) { const mt = Math.min(...mo.map(x => x.T)), mw = mo.some(x => x.p >= 0.1); if (mt <= 1 || (mt <= 3 && mw)) warns.push({ lv: 'warn', icon: 'flake', t: 'Morgen früh ' + nf(mt, 0) + ' °C', d: mw ? 'Nasse Fahrbahn · Glättegefahr' : 'Glätte möglich' }); }
+    }
     fc = { at: Date.now(), warns, temp: cur.temperature_2m, code: cur.weather_code };
     if (tab === 'fahrt' && !sub && !rec) render();
   } catch (e) { }
@@ -173,7 +186,7 @@ const bearing = (a, b) => {
 };
 /* Zonen: bis 60 Stadt, bis 80 Land, ab 80 Autobahn */
 const zoneOf = v => v < 60 ? 0 : v < 80 ? 1 : 2;
-const ZCOL = ['#f2c14e', '#ff7a1a', '#e0242c'];
+const ZCOL = ['#ffa94d', '#ff5a1f', '#ff2d2d'];
 const zcol = v => ZCOL[zoneOf(v)];
 
 /* ---------- Fahrt-Aufzeichnung ---------- */
@@ -195,6 +208,13 @@ function onPos(p) {
   if (dt <= 0) return;
   const raw = d / dt * 3.6;
   const v = c.speed != null && c.speed >= 0 ? c.speed * 3.6 : raw;
+  /* Bereit: erst losfahren, wenn mehrere Messungen > 10 km/h (zu Fuß zur Vespa zählt nicht) */
+  if (rec.state === 'ready') {
+    rec.speed = v < 4 ? 0 : v; rec.last = pt;
+    if (v >= 10 && c.accuracy <= 30 && raw < 130) { rec.goN = (rec.goN || 0) + 1; if (rec.goN >= 3) goTrip(pt); } else rec.goN = 0;
+    return;
+  }
+  if (v >= 8) { rec.stillSince = null; if (rec.state === 'pause') { rec.state = 'go'; hap(1); } }
   if (d < 5) { rec.speed = v < 4 ? 0 : v; return; }
   if (raw > 130) return;
   if (c.heading == null || isNaN(c.heading)) rec.heading = bearing(rec.last, pt);
@@ -203,24 +223,54 @@ function onPos(p) {
 }
 async function startTrip() {
   if (!navigator.geolocation) return toast('Kein GPS verfügbar');
-  rec = { route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null };
+  rec = { state: 'ready', route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null, stillSince: null, target: null };
+  clearInterval(autoT); autoT = setInterval(autoTick, 1000);
   watchId = navigator.geolocation.watchPosition(onPos, e => toast('GPS: ' + (e.code === 1 ? 'Zugriff verweigert' : 'kein Signal')), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
   try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (e) { }
   document.addEventListener('visibilitychange', reWake);
   mountDrive();
   render();
 }
+/* Losfahren erkannt: Aufnahme beginnt hier */
+function goTrip(pt) {
+  rec.state = 'go'; rec.start = new Date(Date.now() - 4000).toISOString(); rec.m = 0; rec.zm = [0, 0, 0]; rec.route = []; rec.hist = []; rec.lastRt = null; rec.max = 0; rec.stop = 0; rec.stillSince = null;
+  rec.startPos = { lat: pt.lat, lon: pt.lon };
+  const w = db.settings.work, h = db.settings.home, near = q => q && hav(rec.startPos, q) < 1500;
+  rec.target = near(h) && w ? w : near(w) && h ? h : (w && !h && !near(w)) ? w : (h && !w && !near(h)) ? h : null;
+  hap(2); toast('Aufnahme läuft');
+}
+/* Stillstand: nach 1 min Pause, nach weiteren 5 min automatisch beenden (Ende = Zeitpunkt des Anhaltens) */
+let autoT = null;
+function autoTick() {
+  if (!rec || rec.state === 'ready') return;
+  const now = Date.now(), stale = now - (rec.upd || 0) > 7000, slow = stale || rec.speed < 3;
+  if (slow) { if (!rec.stillSince) rec.stillSince = now; } else rec.stillSince = null;
+  if (!rec.stillSince) return;
+  const s = (now - rec.stillSince) / 1000;
+  if (rec.state === 'go' && s >= 60) { rec.state = 'pause'; hap(1); }
+  if (s >= 360) { hap(3); const at = new Date(rec.stillSince); stopTrip(at); toast('Fahrt automatisch beendet'); }
+}
+function etaText() {
+  if (!rec || rec.state === 'ready' || !rec.pos || !rec.target) return '';
+  const rem = hav(rec.pos, rec.target) * 1.25 / 1000; if (rem < 0.15) return '';
+  const cm = db.trips.filter(t => t.commute && t.dur > 120 && t.km > 1), sd = cm.reduce((a, t) => a + t.dur, 0);
+  const v = sd ? cm.reduce((a, t) => a + t.km, 0) / sd * 3600 : 24;
+  return 'Ankunft ' + fmtTime(new Date(Date.now() + rem / Math.max(8, v) * 3600e3));
+}
 async function reWake() {
   if (document.visibilityState === 'visible' && rec && navigator.wakeLock) { try { wake = await navigator.wakeLock.request('screen'); } catch (e) { } }
 }
-function stopTrip() {
+function stopTrip(endAt) {
   if (!rec) return;
+  clearInterval(autoT);
   navigator.geolocation.clearWatch(watchId);
   try { wake && wake.release(); } catch (e) { }
   document.removeEventListener('visibilitychange', reWake);
   unmountDrive();
-  const end = new Date(), dur = (end - new Date(rec.start)) / 1000, km = rec.m / 1000;
+  const auto = endAt instanceof Date, end = auto ? endAt : new Date(), dur = Math.max(1, (end - new Date(rec.start)) / 1000), km = rec.m / 1000;
   const r = rec; rec = null;
+  if (r.state === 'ready') { if (r.pos) db.settings.lastPos = r.pos; save(); toast('Keine Fahrt aufgezeichnet'); return render(); }
+  if (auto) { r.stop = Math.max(0, r.stop - (Date.now() - +end) / 1000); r.hist = r.hist.filter(x => x.t <= +end); }
   if (r.pos) { db.settings.lastPos = r.pos; if (km >= 0.1) db.settings.parked = { lat: r.pos.lat, lon: r.pos.lon, t: end.toISOString() }; }
   if (km < 0.1) { save(); toast('Zu kurz – nicht gespeichert'); return render(); }
   const pk = db.settings.pendelKm, B = 24, sp = [];
@@ -245,14 +295,14 @@ const P = (r, deg) => { const a = deg * Math.PI / 180; return [170 + r * Math.co
 const arcd = (r, d1, d2) => { const [x1, y1] = P(r, d1), [x2, y2] = P(r, d2); return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${Math.abs(d2 - d1) > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`; };
 const ease = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
 function dialSVG(hi) {
-  let s = `<svg id="dsv" viewBox="-10 -10 360 330"><defs>
+  let s = `<svg id="dsv" viewBox="-14 -12 368 356"><defs>
   <linearGradient id="bz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a5c60"/><stop offset=".18" stop-color="#2a2b2e"/><stop offset=".4" stop-color="#101113"/><stop offset=".62" stop-color="#3a3b3f"/><stop offset=".8" stop-color="#141517"/><stop offset="1" stop-color="#4a4b4f"/></linearGradient>
   <linearGradient id="bz2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050505"/><stop offset=".5" stop-color="#1b1c1e"/><stop offset="1" stop-color="#060606"/></linearGradient>
-  <filter id="gl" filterUnits="userSpaceOnUse" x="-10" y="-10" width="360" height="330"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-  <circle cx="170" cy="170" r="150" fill="url(#bz)"/><circle cx="170" cy="170" r="149" fill="none" stroke="#7a7c80" stroke-width="1" opacity=".55"/><circle cx="170" cy="170" r="144" fill="url(#bz2)"/><circle cx="170" cy="170" r="139.5" fill="none" stroke="#000" stroke-width="3"/><circle cx="170" cy="170" r="138" fill="#050505"/>`;
+  <filter id="gl" filterUnits="userSpaceOnUse" x="-14" y="-12" width="368" height="356"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe8bb"/><stop offset=".2" stop-color="#d7ba87"/><stop offset=".45" stop-color="#a88e60"/><stop offset=".7" stop-color="#6a522e"/><stop offset="1" stop-color="#3e2f18"/></linearGradient><filter id="sat" x="-.1" y="-.1" width="1.2" height="1.2"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="3" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="saturate" values="0" result="g"/><feComposite in="SourceGraphic" in2="g" operator="arithmetic" k1="0" k2="1" k3=".09" k4="-.045" result="c"/><feComposite in="c" in2="SourceGraphic" operator="in"/></filter><radialGradient id="eo" gradientUnits="userSpaceOnUse" cx="170" cy="170" r="159"><stop offset="0.9836" stop-color="#000" stop-opacity="0"/><stop offset="0.9918" stop-color="#fff4d6" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient><radialGradient id="ei" gradientUnits="userSpaceOnUse" cx="170" cy="170" r="143.6"><stop offset="0.9819" stop-color="#000" stop-opacity=".5"/><stop offset="0.9909" stop-color="#fff4d6" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><g filter="url(#sat)"><circle cx="170" cy="170" r="150" fill="none" stroke="url(#gA)" stroke-width="18"/></g><circle cx="170" cy="170" r="157.7" fill="none" stroke="url(#eo)" stroke-width="2.6"/><circle cx="170" cy="170" r="142.3" fill="none" stroke="url(#ei)" stroke-width="2.6"/><circle cx="170" cy="170" r="141" fill="#050505"/><circle cx="170" cy="170" r="140.3" fill="none" stroke="#000" stroke-width="1.4"/>`;
   for (let v = 0; v < hi; v += 10) {
     const d1 = 135 + 270 * v / hi + 1.3, d2 = 135 + 270 * (v + 10) / hi - 1.3;
-    s += `<path id="sg${v}" d="${arcd(162, d1, d2)}" stroke="#1c1c1c" stroke-width="9" fill="none"/><path id="sf${v}" d="" stroke="${zcol(v)}" stroke-width="9" fill="none"/><path id="sa${v}" d="${arcd(168, d1, d2)}" stroke="#fff" stroke-width="2" fill="none" opacity="0"/>`;
+    s += `<path id="sg${v}" d="${arcd(168, d1, d2)}" stroke="#1c1c1c" stroke-width="9" fill="none"/><path id="sf${v}" d="" stroke="${zcol(v)}" stroke-width="9" fill="none" filter="url(#gl)"/><path id="sa${v}" d="${arcd(176, d1, d2)}" stroke="#fff" stroke-width="2" fill="none" opacity="0"/>`;
   }
   for (let v = 0; v <= hi; v++) {
     const ang = 135 + 270 * v / hi, maj = v % 10 === 0, mid = v % 5 === 0 && !maj;
@@ -261,7 +311,7 @@ function dialSVG(hi) {
     s += `<line id="tk${v}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${maj ? '#d8d8d8' : '#555'}" stroke-width="${maj ? 3.4 : mid ? 1.8 : 1}" opacity="0"/>`;
   }
   for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif" opacity="0">${v}</text>`; }
-  s += `<circle cx="170" cy="170" r="58" fill="none" stroke="#2a2a2a" stroke-width="1.5"/>`;
+  s += `<circle cx="170" cy="170" r="58" fill="none" stroke="#1c1c1c" stroke-width="1.2"/>`;
   for (let i = 0; i <= 60; i++) { const a = 120 - i, [x1, y1] = P(116, a), [x2, y2] = P(124, a); s += `<line id="fu${i}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#2a2a2a" stroke-width="1.1"/>`; }
   [[0, '#e0242c'], [.5, '#ddd'], [1, '#ddd']].forEach(([f, c]) => { const a = 120 - 60 * f, [x1, y1] = P(112, a), [x2, y2] = P(128, a); s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="1.6"/>`; });
   const ff = 'font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif"';
@@ -289,7 +339,7 @@ function paintDial(dv, reach, avg) {
     const d1 = 135 + 270 * v / hi + 1.3, d2 = 135 + 270 * (v + 10) / hi - 1.3;
     const f = G('sf' + v), vis = v <= reach;
     const e = Math.min(d2, sa);
-    f.setAttribute('d', vis && dv > v && e > d1 ? arcd(162, d1, e) : '');
+    f.setAttribute('d', vis && dv > v && e > d1 ? arcd(168, d1, e) : '');
     G('sg' + v).setAttribute('opacity', vis ? 1 : 0);
     G('sa' + v).setAttribute('opacity', avg != null && vis && avg >= v && avg < v + 10 ? 1 : 0);
   }
@@ -340,20 +390,21 @@ function hap(n = 1) {
 }
 function fitDrive() {
   const el = $('#drive'), s = $('#dsv'); if (!s) return;
-  let w = Math.min(360, innerWidth - 24); s.style.width = w + 'px'; s.style.height = 'auto';
+  let w = innerWidth - 4; s.style.width = w + 'px'; s.style.height = 'auto';
   for (let i = 0; i < 12 && el.scrollHeight > el.clientHeight + 1 && w > 220; i++) { w -= Math.max(6, Math.ceil((el.scrollHeight - el.clientHeight) * 1.05)); s.style.width = w + 'px'; }
 }
 function mountDrive() {
   const el = $('#drive'); el.hidden = false; document.body.style.overflow = 'hidden';
   drv = { hi: 100, dv: 0, reach: -1, t0: performance.now(), introDone: false, last: null, sec: 0, hold: 0, faded: false, avgKm: 0 };
-  el.innerHTML = `<div class="top"><div><b class="tm" id="dClock"></b><span id="dDate"></span></div><span class="rec"><i></i>AUFN.</span></div>
+  el.innerHTML = `<div class="dbg"></div><div class="top"><div><b class="tm" id="dClock"></b><span id="dDate"></span><span class="eta" id="dEta"></span></div><span class="rec" id="dRec"><i></i>BEREIT</span></div>
   <div class="chrow"><div class="chips fade" id="dChips"></div><span class="svc" id="dSvc"><button class="ib" data-sv="Ölwechsel"></button><button class="ib" data-sv="Inspektion"></button></span></div>
   <div class="pop" id="dPop" hidden></div>
-  <div class="dialbox" id="dBox"><img class="logo" id="dLogo" src="logo.png" alt=""></div>
+  <div class="dialbox" id="dBox"><img class="logo" id="dLogo" src="vuelta-logo.png" alt=""></div>
   <div id="holdOv"><svg viewBox="0 0 240 240" width="240" height="240"><circle cx="120" cy="120" r="100" fill="rgba(0,0,0,.82)" stroke="#2a2a2a" stroke-width="10"/><circle id="holdP" cx="120" cy="120" r="100" fill="none" stroke="#e0242c" stroke-width="10" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="628" transform="rotate(-90 120 120)"/><text x="120" y="112" text-anchor="middle" fill="#fff" font-size="44" font-family="-apple-system,Helvetica Neue,sans-serif" id="holdT">2,0 s</text><text x="120" y="146" text-anchor="middle" fill="#8c8c8c" font-size="15" letter-spacing="2" font-family="-apple-system,Helvetica Neue,sans-serif">FAHRT BEENDEN</text></svg></div>
   <div class="foot fade"><b id="oA"></b><span class="c" id="dAqi"></span><div class="endw"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><i></i></div><small>2 S HALTEN</small></div></div>
   <div class="mid"><div class="cv fade"><div class="ch"><span>TEMPO · 30 MIN</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
   <div class="tiles fade" id="dTiles"></div></div>
+  <img class="dlogo" src="vuelta-logo.png" alt="Vuelta">
 `;
   $('#dSvc').addEventListener('click', e => { const b = e.target.closest('.ib'); if (!b) return; const nm = b.dataset.sv, pop = $('#dPop'); clearTimeout(drv.pt); if (drv.pop === nm) { drv.pop = null; pop.hidden = true; return; } drv.pop = nm; const inf = svcInfo(nm); pop.innerHTML = `<b>${nm}</b><span>${inf ? inf.text : ''}</span>`; pop.hidden = false; drv.pt = setTimeout(() => { drv.pop = null; pop.hidden = true; }, 6000); });
   buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
@@ -409,8 +460,10 @@ function driveFrame(ts) {
   if (ts - drv.sec >= 1000) { drv.sec = ts; driveSecond(stale); }
 }
 function driveSecond(stale) {
-  const now = new Date(), sec = (now - new Date(rec.start)) / 1000;
-  if (now - (rec.lastSample || 0) >= 5000) { rec.lastSample = +now; rec.hist.push({ t: +now, v: Math.round(stale ? 0 : rec.speed) }); if (stale || rec.speed < 3) rec.stop += 5; }
+  const now = new Date(), sec = rec.state === 'ready' ? 0 : (now - new Date(rec.start)) / 1000;
+  const rl = G('dRec'); if (rl) { const st = rec.state === 'ready' ? 'BEREIT' : rec.state === 'pause' ? 'PAUSE' : 'AUFN.'; if (rl.dataset.s !== st) { rl.dataset.s = st; rl.className = 'rec ' + rec.state; rl.innerHTML = '<i></i>' + st; } }
+  const et = G('dEta'); if (et) et.textContent = etaText();
+  if (rec.state !== 'ready' && now - (rec.lastSample || 0) >= 5000) { rec.lastSample = +now; rec.hist.push({ t: +now, v: Math.round(stale ? 0 : rec.speed) }); if (stale || rec.speed < 3) rec.stop += 5; }
   const avg = rec.m > 0 ? Math.round(rec.m / sec * 3.6) : 0;
   G('dClock').textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   G('dDate').textContent = WD[now.getDay()] + ' ' + now.getDate() + '. ' + MO[now.getMonth()];
@@ -425,7 +478,7 @@ function driveSecond(stale) {
   G('dCv').innerHTML = curveSVG(rec.m > 0 ? avg : null);
   const h = rec.heading;
   G('dTiles').innerHTML = `<div><b>${nf(liveKm(), 1)}</b><span>km</span></div><div><b>${Math.floor(sec / 60)}</b><span>min</span></div><div><b>${w ? nf(w.temp, 0) + '°' : '–'}</b><span>°C</span></div><div>${h != null ? `<svg width="16" height="16" viewBox="0 0 24 24" style="transform:rotate(${Math.round(h)}deg)" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3l7 17-7-4-7 4z"/></svg><b>${Math.round(h)}°</b><span>${dirName(h)}</span>` : '<b>–</b>'}</div>`;
-  const ts = tankState(liveKm()), col = !ts ? '#2a2a2a' : ts.frac > .5 ? '#4fae80' : ts.frac < .25 ? '#ff7a1a' : '#f2c14e';
+  const ts = tankState(liveKm()), col = !ts ? '#2a2a2a' : ts.frac > .5 ? '#3a9466' : ts.frac < .25 ? '#ff7a1a' : '#f2c14e';
   for (let i = 0; i <= 60; i++) { const e = G('fu' + i); if (e) e.setAttribute('stroke', ts && i / 60 <= ts.frac ? col : '#2a2a2a'); }
   const rg = G('rng'); if (rg) { rg.textContent = ts ? '≈ ' + Math.round(ts.range) + ' km' : 'TANK ?'; rg.setAttribute('fill', ts ? col : '#8c8c8c'); rg.setAttribute('opacity', drv.introDone ? 1 : ease((performance.now() - drv.t0) / 1000 - 5.0)); }
   ['Ölwechsel', 'Inspektion'].forEach((nm, i) => { const bt = G('dSvc').children[i], inf = svcInfo(nm); bt.style.display = inf ? '' : 'none'; if (!inf) return; bt.className = 'ib' + (inf.level === 2 ? ' e' : inf.level === 1 ? ' w' : ''); if (!bt.firstChild) bt.innerHTML = ic(i ? 'wrench' : 'oil', 22); if (drv.pop === nm) G('dPop').innerHTML = `<b>${nm}</b><span>${inf.text}</span>`; });
@@ -498,23 +551,39 @@ function typeChart(ms) {
 
 /* ---------- Views ---------- */
 let tripSel = null, dueSel = null, tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
+const HDR = '<div class="hdr"><img src="vuelta-logo.png" alt="Vuelta"><div class="st"><i></i><i></i><u></u></div></div>';
+function miniCurve(a, w, h) {
+  if (a.length < 2) a = [0, ...a];
+  const m = Math.max(1, ...a), pts = a.map((x, i) => [4 + i * (w - 8) / (a.length - 1), h - 4 - (h - 10) * x / m]);
+  let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${bez(pts)}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  pts.forEach((p, i) => s += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === pts.length - 1 ? 3.2 : 2.2}" fill="${i === pts.length - 1 ? '#efbb3c' : '#fff'}"/>`);
+  return s + '</svg>';
+}
+const daysAgo = s => s ? (Date.now() - new Date(s)) / 864e5 : 1e9;
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
   fetchForecast();
   const odo = currentOdo(), due = db.reminders.map(r => ({ r, s: reminderStatus(r) })).filter(x => x.s.level > 0), ts = tankState(), pk = db.settings.parked;
-  let h = `<div class="h">Q'vuelta</div>`;
+  let h = '';
   (fc ? fc.warns : []).forEach(w => h += `<div class="card warn"><b>${ic(w.icon, 16)} ${esc(w.t)}</b><span class="l">${esc(w.d)}</span></div>`);
-  if (ts && ts.frac < .25) h += `<button class="card btn warn" data-a="opentank"><div class="r"><div><b>Tank ${Math.round(ts.frac * 100)} %</b><span class="l">≈ ${Math.round(ts.range)} km · ${nf(ts.liters, 1)} l</span></div>${ic('fuel', 22)}</div></button>`;
-  h += `<div class="g2"><div class="t"><b>${nf(odo, 0)}</b><span>km gesamt</span></div><div class="t"><b>${nf(weekKm(0), 0)}</b><span>km diese Woche</span></div></div>`;
-  const fuelTile = `<button class="ib2 ${ts && ts.frac < .25 ? 'w' : ''}" data-a="opentank" aria-label="Tanken">${ic('fuel', 24)}</button>`;
+  if (daysAgo(db.settings.odoCheck || db.settings.odoDate) > 30) h += `<button class="card btn" data-a="odophoto"><div class="r"><div><b>Kilometerstand abgleichen</b><span class="l">Tacho fotografieren · einmal im Monat</span></div>${ic('speed', 22)}</div></button>`;
+  if (db.trips.length && daysAgo(db.settings.lastBackup) > 7) h += `<button class="card btn" data-a="export"><div class="r"><div><b>Daten sichern</b><span class="l">${db.settings.lastBackup ? 'Letzte Sicherung vor ' + Math.floor(daysAgo(db.settings.lastBackup)) + ' Tagen' : 'Noch nie gesichert'} · in Dateien / iCloud</span></div>${ic('note', 22)}</div></button>`;
+  /* Hauptkachel: Woche mit Kurve Mo–heute und Vergleich zum gleichen Zeitraum der Vorwoche */
+  const ws = weekStart(0), dd = [0, 0, 0, 0, 0, 0, 0]; db.trips.forEach(t => { const i = Math.floor((new Date(t.start) - ws) / 864e5); if (i >= 0 && i < 7) dd[i] += t.km; });
+  const td = (new Date().getDay() + 6) % 7, ps = weekStart(1), pe = new Date(+ps + (td + 1) * 864e5);
+  const prev = db.trips.filter(x => { const d = new Date(x.start); return d >= ps && d < pe; }).reduce((a, x) => a + x.km, 0), cur = weekKm(0), pc = prev ? Math.round((cur - prev) / prev * 100) : null;
+  h += `<div class="g2"><div class="t hero"><b>${nf(cur, 0)}</b><span>km diese Woche</span><div class="hx">${miniCurve(dd.slice(0, td + 1), 150, 44)}<div class="hxl"><span>MO</span><span>${WD[new Date().getDay()]}</span></div>${pc != null ? `<div class="hxp ${pc >= 0 ? 'up' : 'dn'}">${pc >= 0 ? '+' : ''}${pc} % zur Vorwoche</div>` : ''}</div></div>
+  <div class="t"><b>${nf(odo, 0)}</b><span>km gesamt</span></div>
+  <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank"><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><span>${ts ? 'Tank · ≈ ' + Math.round(ts.range) + ' km' : 'Tank · tippen'}</span>${ts ? `<div class="tb"><u style="width:${Math.round(ts.frac * 100)}%"></u></div>` : ''}</button></div>`;
   if (due.length) {
     const icn = n => /öl/i.test(n) ? 'oil' : /insp/i.test(n) ? 'wrench' : /hu|tüv/i.test(n) ? 'note' : /reif/i.test(n) ? 'tire' : /variator|riemen/i.test(n) ? 'bolt' : 'wrench';
     const sel = due.find(x => x.r.id === dueSel);
-    h += `<div class="sec">Tanken · Fällig</div><div class="dueRow">${fuelTile}` + due.map(x => `<button class="ib2 ${x.s.level === 2 ? 'e' : 'w'} ${sel && sel.r.id === x.r.id ? 'on' : ''}" data-a="duesel" data-id="${x.r.id}" aria-label="${esc(x.r.name)}">${ic(icn(x.r.name), 24)}</button>`).join('') + `</div>`;
+    h += `<div class="sec">Fällig</div><div class="dueRow">` + due.map(x => `<button class="ib2 ${x.s.level === 2 ? 'e' : 'w'} ${sel && sel.r.id === x.r.id ? 'on' : ''}" data-a="duesel" data-id="${x.r.id}" aria-label="${esc(x.r.name)}">${ic(icn(x.r.name), 24)}</button>`).join('') + `</div>`;
     if (sel) h += `<div class="card ${sel.s.level === 2 ? 'danger' : 'warn'}"><b>${esc(sel.r.name)}</b><span class="l">${esc(sel.s.text)}</span><div class="r" style="margin-top:10px;gap:8px"><button class="sm" data-a="donerem" data-id="${sel.r.id}">Erledigt</button><button class="sm" data-a="editrem" data-id="${sel.r.id}">Bearbeiten</button></div></div>`;
   }
-  else h += `<div class="sec">Tanken</div><div class="dueRow">${fuelTile}</div>`;
+  const lt = db.trips.slice().sort((a, b) => b.start.localeCompare(a.start))[0];
+  if (lt) h += `<div class="sec">Letzte Fahrt</div><button class="card btn last" data-a="lasttrip" data-id="${lt.id}"><div class="r"><b class="big">${nf(lt.km, 1)}<small> km</small></b><span class="l" style="margin:0">${fmtDay(lt.start)} · ${fmtTime(lt.start)}</span></div><div class="r2"><span>${Math.round(lt.dur / 60)} min</span><span class="y">Ø ${lt.avg}</span><span>${lt.commute ? 'Pendeln' : 'Freizeit'}</span></div>${lt.zk ? zb(lt.zk) : ''}</button>`;
   if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden"><div class="r"><div><b>Roller finden</b><span class="l">geparkt ${fmtDay(pk.t)} · ${fmtTime(pk.t)}</span></div>${ic('pin', 22)}</div></button>`;
   return h;
 }
@@ -567,8 +636,9 @@ function viewFahrten() {
   const all = db.trips, total = all.reduce((a, x) => a + x.km, 0);
   const f = { all: () => true, commute: t => t.commute, free: t => !t.commute, cold: t => t.temp != null && t.temp <= 5 }[fFilter];
   const t = all.filter(f), chip = (k, l, c = 'on') => `<button class="c ${fFilter === k ? c : ''}" data-a="ff" data-f="${k}">${l}</button>`;
-  return `<div class="h">Fahrten</div>
-  <div class="g2"><div class="t"><b>${all.length}</b><span>Fahrten</span></div><div class="t"><b>${nf(total, 0)}</b><span>km gefahren</span></div></div>
+  const wk = [7, 6, 5, 4, 3, 2, 1, 0].map(i => weekKm(i));
+  return `<div class="g2"><div class="t hero"><b>${nf(total, 0)}</b><span>km gefahren</span><div class="hx">${miniCurve(wk, 150, 44)}<div class="hxl"><span>8 WO.</span><span>JETZT</span></div></div></div>
+  <div class="t"><b>${all.length}</b><span>Fahrten</span></div><div class="t"><b>${all.length ? nf(total / all.length, 1) : '–'}</b><span>km Ø pro Fahrt</span></div></div>
   <div class="chips" style="margin-top:12px">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
   ${t.length ? t.map(x => {
     const w = weatherInfo(x.code);
@@ -577,15 +647,43 @@ function viewFahrten() {
   }).join('') : '<p class="mu">Keine Fahrten in dieser Ansicht.</p>'}`;
 }
 function tripMap(rt) {
-  const W = 326, H = 210, pad = 26;
   if (!rt || rt.length < 2) return '';
-  const lon2x = (lo, z) => (lo + 180) / 360 * 256 * 2 ** z, lat2y = (la, z) => (1 - Math.log(Math.tan(la * Math.PI / 180) + 1 / Math.cos(la * Math.PI / 180)) / Math.PI) / 2 * 256 * 2 ** z;
-  const las = rt.map(x => x[0]), los = rt.map(x => x[1]), a = Math.min(...las), b = Math.max(...las), c = Math.min(...los), d = Math.max(...los);
-  let z = 17; for (; z > 3; z--) { if (lon2x(d, z) - lon2x(c, z) <= W - 2 * pad && lat2y(a, z) - lat2y(b, z) <= H - 2 * pad) break; }
-  const ox = (lon2x(c, z) + lon2x(d, z)) / 2 - W / 2, oy = (lat2y(a, z) + lat2y(b, z)) / 2 - H / 2;
-  let im = ''; for (let tx = Math.floor(ox / 256); tx <= Math.floor((ox + W) / 256); tx++) for (let ty = Math.floor(oy / 256); ty <= Math.floor((oy + H) / 256); ty++) im += `<image href="https://a.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}.png" x="${(tx * 256 - ox).toFixed(1)}" y="${(ty * 256 - oy).toFixed(1)}" width="256" height="256"/>`;
-  const pt = rt.map(x => [lon2x(x[1], z) - ox, lat2y(x[0], z) - oy]), s = pt[0], e = pt[pt.length - 1];
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border-radius:12px;background:#0b0b0b"><rect width="${W}" height="${H}" fill="#0b0b0b"/>${im}<path d="${bez(pt)}" fill="none" stroke="#000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/><path d="${bez(pt)}" fill="none" stroke="#f2c14e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${s[0]}" cy="${s[1]}" r="5.5" fill="#4fae80" stroke="#000" stroke-width="2"/><circle cx="${e[0]}" cy="${e[1]}" r="5.5" fill="#e0242c" stroke="#000" stroke-width="2"/><text x="${W - 6}" y="${H - 5}" text-anchor="end" font-size="8" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">© OpenStreetMap · © CARTO</text></svg>`;
+  return `<div class="tmap" id="tmap">${routeSVG(rt)}</div><span class="mapattr">© OpenFreeMap · © OpenStreetMap</span>`;
+}
+/* Fallback/Platzhalter: Route ohne Kartenkacheln */
+function routeSVG(rt) {
+  const W = 326, H = 210, pad = 22, las = rt.map(x => x[0]), los = rt.map(x => x[1]);
+  const a = Math.min(...las), b = Math.max(...las), c = Math.min(...los), d = Math.max(...los), k = Math.cos(a * Math.PI / 180);
+  const sx = (d - c) * k || 1e-6, sy = (b - a) || 1e-6, sc = Math.min((W - 2 * pad) / sx, (H - 2 * pad) / sy);
+  const pt = rt.map(x => [W / 2 + ((x[1] - (c + d) / 2) * k) * sc, H / 2 - (x[0] - (a + b) / 2) * sc]), s0 = pt[0], e = pt[pt.length - 1];
+  return `<svg class="rsvg" viewBox="0 0 ${W} ${H}" width="100%"><path d="${bez(pt)}" fill="none" stroke="#000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/><path d="${bez(pt)}" fill="none" stroke="#efbb3c" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${s0[0]}" cy="${s0[1]}" r="5.5" fill="#3a9466" stroke="#000" stroke-width="2"/><circle cx="${e[0]}" cy="${e[1]}" r="5.5" fill="#ff2d2d" stroke="#000" stroke-width="2"/></svg>`;
+}
+let mlP = null;
+function loadMapLibre() {
+  if (window.maplibregl) return Promise.resolve();
+  if (mlP) return mlP;
+  mlP = new Promise((res, rej) => {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'; document.head.appendChild(l);
+    const sc = document.createElement('script'); sc.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'; sc.onload = res; sc.onerror = () => { mlP = null; rej(); }; document.head.appendChild(sc);
+  });
+  return mlP;
+}
+function initTripMap() {
+  const t = db.trips.find(x => x.id === tripSel), box = G('tmap'); if (!t || !box || !t.route || t.route.length < 2) return;
+  loadMapLibre().then(() => {
+    if (!document.body.contains(box)) return;
+    const co = t.route.map(x => [x[1], x[0]]), bb = co.reduce((m, p) => [Math.min(m[0], p[0]), Math.min(m[1], p[1]), Math.max(m[2], p[0]), Math.max(m[3], p[1])], [180, 90, -180, -90]);
+    const div = document.createElement('div'); div.className = 'mlmap'; box.appendChild(div);
+    const map = new maplibregl.Map({ container: div, style: 'https://tiles.openfreemap.org/styles/dark', bounds: [[bb[0], bb[1]], [bb[2], bb[3]]], fitBoundsOptions: { padding: 28 }, interactive: false, attributionControl: false, fadeDuration: 0 });
+    map.on('load', () => {
+      map.addSource('r', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: co } } });
+      map.addLayer({ id: 'rc', type: 'line', source: 'r', paint: { 'line-color': '#000', 'line-width': 7, 'line-opacity': .6 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+      map.addLayer({ id: 'rl', type: 'line', source: 'r', paint: { 'line-color': '#efbb3c', 'line-width': 3.4 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+      map.addSource('se', { type: 'geojson', data: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { c: '#3a9466' }, geometry: { type: 'Point', coordinates: co[0] } }, { type: 'Feature', properties: { c: '#ff2d2d' }, geometry: { type: 'Point', coordinates: co[co.length - 1] } }] } });
+      map.addLayer({ id: 'se', type: 'circle', source: 'se', paint: { 'circle-radius': 5.5, 'circle-color': ['get', 'c'], 'circle-stroke-color': '#000', 'circle-stroke-width': 2 } });
+      box.classList.add('ok');
+    });
+  }).catch(() => { });
 }
 function tripCurve(ser, avg, dur) {
   const W = 326, H = 170, x0 = 6, x1 = 320, n = ser.length; if (n < 2) return '';
@@ -628,9 +726,9 @@ function viewLogbuch() {
   const km = tk.length > 1 ? tk[tk.length - 1].odo - tk[0].odo : 0, spent = tk.slice(1).reduce((a, l) => a + (l.eur || 0), 0);
   const logs = db.logs.filter(l => lFilter === 'all' || l.type === lFilter).sort((a, b) => b.date.localeCompare(a.date) || (b.odo || 0) - (a.odo || 0));
   const chip = (k, l) => `<button class="c ${lFilter === k ? 'on' : ''}" data-a="lf" data-f="${k}">${l}</button>`;
-  return `<div class="h">Logbuch</div>
-  <div class="chips">${chip('all', 'Alle')}${chip('tank', 'Tanken')}${chip('service', 'Service')}${chip('reifen', 'Reifen')}${chip('notiz', 'Notiz')}</div>
-  <div class="g2"><div class="t"><b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km Ø</span></div><div class="t"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><span>€ / 100 km</span></div></div>
+  const ts = tankState();
+  return `<div class="chips">${chip('all', 'Alle')}${chip('tank', 'Tanken')}${chip('service', 'Service')}${chip('reifen', 'Reifen')}${chip('notiz', 'Notiz')}</div>
+  <div class="g2"><div class="t hero"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><span>€ / 100 km</span></div><div class="t"><b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km Ø</span></div><button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank"><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><span>Tank</span>${ts ? `<div class="tb"><u style="width:${Math.round(ts.frac * 100)}%"></u></div>` : ''}</button></div>
   <div style="height:10px"></div>
   ${logs.length ? logs.map(l => {
     let d = '', right = '';
@@ -643,12 +741,13 @@ function viewLogbuch() {
 }
 function viewMehr() {
   const ms = monthSeries(), avgM = ms.filter(m => m.km).length ? Math.round(ms.reduce((a, m) => a + m.km, 0) / ms.filter(m => m.km).length) : 0;
-  const R = records(), rt = (i, v, u, l, d) => `<div class="t rk">${ic(i, 18)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span>${l}</span><span class="d">${v ? v.d : ''}</span></div>`;
-  return `<div class="h">Mehr</div><div class="sec" style="margin-top:0">Analyse</div>
+  const R = records(), rt = (i, v, u, l, hero) => `<div class="t rk${hero ? ' hero' : ''}">${ic(i, 18)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span>${l}</span><span class="d">${v ? v.d : ''}</span></div>`;
+  const op = db.settings.odoPhoto;
+  return `<div class="sec" style="margin-top:0">Analyse</div>
   <div class="card gr1"><div class="r"><span class="l">Kilometer pro Monat</span><b class="y">Ø ${avgM}</b></div>${monthChart(ms)}</div>
   <div class="card gr2"><div class="r"><span class="l">Strecke pro Typ</span><span class="l" style="display:flex;gap:12px;margin:0">${['city', 'land', 'bab'].map((n, i) => `<span style="color:${ZCOL[i]}">${ic(n, 18)} ●</span>`).join('')}</span></div>${typeChart(ms)}</div>
   <div class="sec">Rekorde</div>
-  <div class="g2">${rt('clock', R.fast, 'min', 'Schnellste Pendelfahrt')}${rt('route', R.long, 'km', 'Längste Tour')}${rt('speed', R.top, 'km/h', 'Höchstes Tempo')}${rt('cal', R.week, 'km', 'Beste Woche')}${rt('bolt', R.streak, 'Tage', 'Längste Serie')}${rt('fuel', R.cons, 'l/100', 'Bester Verbrauch')}</div>
+  <div class="g2">${rt('clock', R.fast, 'min', 'Schnellste Pendelfahrt')}${rt('route', R.long, 'km', 'Längste Tour', 1)}${rt('speed', R.top, 'km/h', 'Höchstes Tempo')}${rt('cal', R.week, 'km', 'Beste Woche')}${rt('bolt', R.streak, 'Tage', 'Längste Serie')}${rt('fuel', R.cons, 'l/100', 'Bester Verbrauch')}</div>
   <div class="sec">Erinnerungen</div>
   ${db.reminders.map(r => { const s = reminderStatus(r); return `<div class="card ${['', 'warn', 'danger'][s.level]}"><div class="r"><div><b>${esc(r.name)}</b><span class="l">${esc(s.text)}</span></div><span class="c ${['', 'w', 'e'][s.level]}">${s.level === 2 ? 'fällig' : s.level === 1 ? 'bald' : 'ok'}</span></div><div class="r" style="margin-top:10px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="sm pri" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`; }).join('')}
   <button class="sm" data-a="newrem">+ Erinnerung</button>
@@ -659,14 +758,16 @@ function viewMehr() {
     <div class="r" style="margin-top:8px"><span class="l" style="margin:0">Tank</span><b>${nf(db.settings.tank, 1)} l</b></div>
     <div class="r" style="margin-top:8px"><span class="l" style="margin:0">Nadel im Tacho</span><b>${db.settings.needle ? 'an' : 'aus'}</b></div>
     <div class="r" style="margin-top:8px"><span class="l" style="margin:0">Tankerkönig-Schlüssel</span><b>${db.settings.tkKey ? 'gesetzt' : '–'}</b></div>
-    <div style="margin-top:12px"><button class="sm" data-a="settings">Ändern</button></div>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="sm" data-a="settings">Ändern</button><button class="sm" data-a="odophoto">${ic('speed', 13)} Tacho fotografieren</button></div>
+    ${op ? `<div class="odoph"><img src="${op.img}" alt="Tacho"><span class="l">Abgleich ${fmtDate(op.t)} · ${nf(op.odo || 0, 0)} km</span></div>` : ''}
   </div>
+  <input type="file" id="odoimg" accept="image/*" capture="environment" hidden>
   <div class="g2"><button class="pill" data-a="setwork">${ic('navi', 14)} Arbeit ${db.settings.work ? '✓' : ''}<br><span class="l" style="margin-top:4px">hier speichern</span></button><button class="pill" data-a="sethome">${ic('navi', 14)} Zuhause ${db.settings.home ? '✓' : ''}<br><span class="l" style="margin-top:4px">hier speichern</span></button></div>
   <div class="sec">Daten</div>
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
-  <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichere sie regelmäßig – Safari kann Website-Daten löschen.</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 10 · 18.11.2026</p>`;
+  <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 11 · 18.11.2026</p>`;
 }
 function dockHTML() {
   if (tab === 'fahrt') {
@@ -681,7 +782,8 @@ function dockHTML() {
 }
 function render() {
   const v = $('#view'), y = window.scrollY;
-  v.innerHTML = ({ fahrt: viewFahrt, fahrten: () => sub === 'trip' ? viewTrip() : viewFahrten(), logbuch: viewLogbuch, mehr: viewMehr })[tab]();
+  v.innerHTML = HDR + ({ fahrt: viewFahrt, fahrten: () => sub === 'trip' ? viewTrip() : viewFahrten(), logbuch: viewLogbuch, mehr: viewMehr })[tab]();
+  if (tab === 'fahrten' && sub === 'trip') initTripMap();
   $('#dock').innerHTML = dockHTML();
   const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '210px' : '130px') : '90px';
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
@@ -726,6 +828,8 @@ const actions = {
   finden() { sub = 'finden'; render(); },
   back() { sub = null; render(); },
   opentrip(el) { tripSel = el.dataset.id; sub = 'trip'; render(); window.scrollTo(0, 0); },
+  lasttrip(el) { tab = 'fahrten'; tripSel = el.dataset.id; sub = 'trip'; render(); window.scrollTo(0, 0); },
+  odophoto() { const i = $('#odoimg') || Object.assign(document.body.appendChild(document.createElement('input')), { type: 'file', id: 'odoimg', accept: 'image/*', hidden: true }); i.setAttribute('capture', 'environment'); i.value = ''; i.click(); },
   duesel(el) { dueSel = dueSel === el.dataset.id ? null : el.dataset.id; render(); },
   parknow() { here(p => { db.settings.parked = { lat: p.lat, lon: p.lon, t: new Date().toISOString() }; save(); render(); toast('Standort gemerkt'); }); },
   compass() {
@@ -765,12 +869,38 @@ const actions = {
     if (r.dueDate !== undefined && !r.everyKm && !r.everyMonths) return remForm(r);
     r.lastOdo = Math.round(currentOdo()); r.lastDate = today(); save(); render(); toast(r.name + ' erledigt');
   },
-  export() {
-    const b = new Blob([JSON.stringify(db, null, 1)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'vespa-logbuch-' + today() + '.json'; a.click();
+  async export() {
+    const name = 'vuelta-sicherung-' + today() + '.json', txt = JSON.stringify(db, null, 1);
+    const done = () => { db.settings.lastBackup = new Date().toISOString(); save(); render(); };
+    try {
+      const f = new File([txt], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Vuelta Sicherung' }); toast('Gesichert'); return done(); }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = name; a.click(); done();
   },
   import() { $('#imp').click(); }
 };
+/* Tacho-Foto: verkleinert speichern, Zahl per Texterkennung vorschlagen, bestätigen */
+async function odoFromPhoto(file) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  const sc = Math.min(1, 900 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+  cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  const data = cv.toDataURL('image/jpeg', .72), cur = Math.round(currentOdo());
+  let guess = null;
+  toast('Lese Kilometerstand …');
+  try {
+    if (!window.Tesseract) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    const g = document.createElement('canvas'); g.width = cv.width; g.height = cv.height; const x = g.getContext('2d'); x.filter = 'grayscale(1) contrast(1.8)'; x.drawImage(cv, 0, 0);
+    const r = await Tesseract.recognize(g, 'eng', { tessedit_char_whitelist: '0123456789' });
+    const nums = (r.data.text.match(/\d{3,6}/g) || []).map(Number).filter(n => n >= 100);
+    if (nums.length) guess = nums.sort((a, b) => Math.abs(a - cur) - Math.abs(b - cur))[0];
+  } catch (e) { }
+  openSheet('Kilometerstand', [{ n: 'odo', l: guess ? 'Erkannt – bitte prüfen' : 'Nicht erkannt – bitte eintippen', type: 'number', v: guess || cur }], o => {
+    if (!o.odo) return;
+    setOdo(o.odo); db.settings.odoCheck = new Date().toISOString(); db.settings.odoPhoto = { t: new Date().toISOString(), odo: o.odo, img: data };
+    toast('Kilometerstand angeglichen');
+  }, 'Übernehmen');
+}
 function remForm(r, isNew) {
   const fields = [{ n: 'name', l: 'Name', v: r.name }, { n: 'everyKm', l: 'Alle … km (0 = aus)', type: 'number', v: r.everyKm || 0 }, { n: 'everyMonths', l: 'Alle … Monate (0 = aus)', type: 'number', v: r.everyMonths || 0 }, { n: 'dueDate', l: 'Oder festes Fälligkeitsdatum', type: 'date', v: r.dueDate || '' }];
   openSheet(isNew ? 'Neue Erinnerung' : r.name, fields, o => {
@@ -789,12 +919,25 @@ function init() {
     const a = e.target.closest('[data-a]'); if (a && actions[a.dataset.a]) { if (a.dataset.a === 'start') hap(2); if (['tank', 'service', 'reifen', 'notiz'].includes(a.dataset.a)) closeSheet(); actions[a.dataset.a](a); }
   });
   document.addEventListener('change', e => {
+    if (e.target.id === 'odoimg' && e.target.files[0]) return odoFromPhoto(e.target.files[0]);
     if (e.target.id !== 'imp' || !e.target.files[0]) return;
     const rd = new FileReader();
     rd.onload = () => { try { const j = JSON.parse(rd.result); if (!j.trips || !j.logs) throw 0; db = j; load2(); toast('Wiederhergestellt'); } catch (x) { toast('Datei ungültig'); } };
     rd.readAsText(e.target.files[0]);
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !rec) { fetchForecast(); render(); } });
+  const TI = { fahrt: 'speed', fahrten: 'route', logbuch: 'note' };
+  document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', TI[b.dataset.t] ? ic(TI[b.dataset.t], 20) : '<svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'));
+  /* Wischen zwischen den Seiten (nur in der Mitte, nicht an den Rändern, nicht im Fahrmodus) */
+  const ORD = ['fahrt', 'fahrten', 'logbuch', 'mehr']; let sw = null;
+  document.addEventListener('touchstart', e => { const t = e.touches[0]; sw = (e.touches.length === 1 && !rec && $('#sheet').hidden && t.clientX > 28 && t.clientX < innerWidth - 28) ? { x: t.clientX, y: t.clientY, at: Date.now() } : null; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (!sw) return; const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y; const ok = Math.abs(dx) > 70 && Math.abs(dy) < 45 && Date.now() - sw.at < 700; sw = null;
+    if (!ok) return;
+    if (sub) { if (dx > 0) { sub = null; render(); } return; }
+    const i = ORD.indexOf(tab) + (dx < 0 ? 1 : -1); if (i < 0 || i >= ORD.length) return;
+    tab = ORD[i]; render(); window.scrollTo(0, 0);
+  }, { passive: true });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => { });
   render();
 }
