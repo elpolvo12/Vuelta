@@ -592,7 +592,8 @@ function viewMehr() {
   <div class="sec">Daten</div>
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
-  <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichere sie regelmäßig – Safari kann Website-Daten löschen.</p>`;
+  <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichere sie regelmäßig – Safari kann Website-Daten löschen.</p>
+  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 6 · 18.11.2026</p>`;
 }
 function dockHTML() {
   if (tab === 'fahrt') {
