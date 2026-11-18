@@ -35,7 +35,9 @@ const IP = {
   wrench: '<path d="M14.5 6.5a4 4 0 0 0-5 5L3 18l3 3 6.5-6.5a4 4 0 0 0 5-5l-3 3-2-2z"/>',
   tire: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
   note: '<path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7"/>',
-  wind: '<path d="M3 9h11a3 3 0 1 0-3-3M3 15h14a3 3 0 1 1-3 3"/>'
+  wind: '<path d="M3 9h11a3 3 0 1 0-3-3M3 15h14a3 3 0 1 1-3 3"/>',
+  work: '<rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2M3 13h18M11 13v1.5h2V13"/>',
+  home: '<path d="M3.5 11L12 4l8.5 7M6 9.5V20h12V9.5M10 20v-5.5h4V20"/>'
 };
 const ic = (n, s = 15) => (s -= 1,  `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IP[n]}</svg>`);
 
@@ -110,9 +112,9 @@ function weatherInfo(code) {
 }
 async function fetchWeather(lat, lon) {
   try {
-    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=temperature_2m,weather_code');
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kmh');
     const j = await r.json();
-    return { temp: j.current.temperature_2m, code: j.current.weather_code };
+    const c = j.current; return { temp: c.temperature_2m, code: c.weather_code, wind: Math.round(c.wind_speed_10m), gust: Math.round(c.wind_gusts_10m), wdir: c.wind_direction_10m };
   } catch (e) { return null; }
 }
 async function fetchAqi(lat, lon) {
@@ -127,7 +129,7 @@ async function fetchForecast() {
   if (fc && Date.now() - fc.at < 15 * 60e3) return;
   const p = db.settings.lastPos || { lat: 52.52, lon: 13.4 };
   try {
-    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m,weather_code&hourly=temperature_2m,precipitation&forecast_hours=18&timezone=auto');
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation,wind_gusts_10m&forecast_hours=18&wind_speed_unit=kmh&timezone=auto');
     const j = await r.json();
     const warns = [], cur = j.current, hh = j.hourly;
     const h = { time: hh.time.slice(0, 4), precipitation: hh.precipitation.slice(0, 4), temperature_2m: hh.temperature_2m.slice(0, 4) };
@@ -153,7 +155,9 @@ async function fetchForecast() {
       const mo = L.filter(x => x.d !== today0 && x.hr >= 6 && x.hr <= 9);
       if (mo.length) { const mt = Math.min(...mo.map(x => x.T)), mw = mo.some(x => x.p >= 0.1); if (mt <= 1 || (mt <= 3 && mw)) warns.push({ lv: 'warn', icon: 'flake', t: 'Morgen früh ' + nf(mt, 0) + ' °C', d: mw ? 'Nasse Fahrbahn · Glättegefahr' : 'Glätte möglich' }); }
     }
-    fc = { at: Date.now(), warns, temp: cur.temperature_2m, code: cur.weather_code };
+    const gMax = Math.max(cur.wind_gusts_10m, ...hh.wind_gusts_10m.slice(0, 4));
+    if (gMax >= 45) warns.push({ lv: 'warn', icon: 'wind', t: 'Starker Wind', d: 'Böen bis ' + Math.round(gMax) + ' km/h · vorsichtig fahren' });
+    fc = { at: Date.now(), warns, temp: cur.temperature_2m, code: cur.weather_code, wind: Math.round(cur.wind_speed_10m), gust: Math.round(cur.wind_gusts_10m), wdir: cur.wind_direction_10m };
     if (tab === 'fahrt' && !sub && !rec) render();
   } catch (e) { }
 }
@@ -201,7 +205,6 @@ function onPos(p) {
   if (!rec.wFetching) {
     rec.wFetching = true;
     fetchWeather(pt.lat, pt.lon).then(w => { if (rec) { rec.weather = w; if (w) lastWeather = w; } });
-    fetchAqi(pt.lat, pt.lon).then(a => { if (rec) rec.aqi = a; });
   }
   if (!rec.last) { rec.last = pt; return; }
   const d = hav(rec.last, pt), dt = (pt.t - rec.last.t) / 1000;
@@ -281,13 +284,33 @@ function stopTrip(endAt) {
   const ds = (a, n) => { if (a.length <= n) return a.slice(); const o = []; for (let i = 0; i < n; i++) { const x = Math.floor(i * a.length / n), y = Math.max(x + 1, Math.floor((i + 1) * a.length / n)); o.push(a.slice(x, y)); } return o; };
   const ser = ds(r.hist.map(x => x.v), 120).map(x => Array.isArray(x) ? Math.round(x.reduce((a, b) => a + b, 0) / x.length) : x);
   const trip = {
-    ser, route: ds(r.route, 150).map(x => Array.isArray(x[0]) ? x[Math.floor(x.length / 2)] : x), stop: r.stop, aqi: r.aqi,
+    ser, route: ds(r.route, 150).map(x => Array.isArray(x[0]) ? x[Math.floor(x.length / 2)] : x), stop: r.stop, wind: r.weather ? r.weather.wind : null, gust: r.weather ? r.weather.gust : null,
     id: uid(), start: r.start, end: end.toISOString(), km: Math.round(km * 100) / 100, dur: Math.round(dur),
     max: Math.round(r.max), avg: Math.round(km / (dur / 3600)), temp: r.weather ? r.weather.temp : null, code: r.weather ? r.weather.code : null,
     commute: km > pk * 0.6 && km < pk * 1.6, zk: r.zm.map(x => Math.round(x / 10) / 100), spark: sp
   };
   db.trips.unshift(trip); save(); toast('Fahrt gespeichert: ' + nf(km) + ' km'); render();
+  nameTrip(trip).then(() => render());
 }
+/* Start/Ziel benennen: Zuhause, Arbeit oder Stadtteil (OpenStreetMap, ohne Schlüssel) */
+const geoC = {}; let geoQ = Promise.resolve();
+function placeName(p) {
+  if (!p) return Promise.resolve(null);
+  const near = q => q && hav(p, q) < 350;
+  if (near(db.settings.home)) return Promise.resolve('Zuhause');
+  if (near(db.settings.work)) return Promise.resolve('Arbeit');
+  const k = p.lat.toFixed(3) + ',' + p.lon.toFixed(3); if (geoC[k]) return Promise.resolve(geoC[k]);
+  geoQ = geoQ.then(() => new Promise(r => setTimeout(r, 1100))).then(() => fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=de&lat=' + p.lat + '&lon=' + p.lon).then(r => r.json()).then(j => { const a = j.address || {}; return geoC[k] = a.suburb || a.quarter || a.city_district || a.neighbourhood || a.town || a.village || a.city || null; }).catch(() => null));
+  return geoQ;
+}
+function nameTrip(t) {
+  if (!t.route || t.route.length < 2 || (t.from && t.to)) return Promise.resolve();
+  const a = { lat: t.route[0][0], lon: t.route[0][1] }, b = { lat: t.route[t.route.length - 1][0], lon: t.route[t.route.length - 1][1] };
+  return placeName(a).then(f => placeName(b).then(e => { if (f) t.from = f; if (e) t.to = e; if (f || e) save(); }));
+}
+const ftLabel = t => t.from || t.to ? `${esc(t.from || '?')} → ${esc(t.to || '?')}` : '';
+let named = false;
+function nameOldTrips() { if (named) return; named = true; db.trips.filter(t => !t.from && t.route && t.route.length > 1).slice(0, 40).reduce((pr, t) => pr.then(() => nameTrip(t)), Promise.resolve()).then(() => { if (tab === 'fahrten' && !sub) render(); }); }
 const liveKm = () => rec ? rec.m / 1000 : 0;
 
 /* ---------- Fahrmodus (Vollbild, Touch-Sperre, 2 s halten zum Beenden) ---------- */
@@ -310,14 +333,15 @@ function dialSVG(hi) {
     const [x1, y1] = P(r1, ang), [x2, y2] = P(r2, ang);
     s += `<line id="tk${v}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${maj ? '#d8d8d8' : '#555'}" stroke-width="${maj ? 3.4 : mid ? 1.8 : 1}" opacity="0"/>`;
   }
-  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif" opacity="0">${v}</text>`; }
+  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" display="none" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif" opacity="0">${v}</text>`; }
   s += `<circle cx="170" cy="170" r="58" fill="none" stroke="#1c1c1c" stroke-width="1.2"/>`;
   for (let i = 0; i <= 60; i++) { const a = 120 - i, [x1, y1] = P(116, a), [x2, y2] = P(124, a); s += `<line id="fu${i}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#2a2a2a" stroke-width="1.1"/>`; }
   [[0, '#e0242c'], [.5, '#ddd'], [1, '#ddd']].forEach(([f, c]) => { const a = 120 - 60 * f, [x1, y1] = P(112, a), [x2, y2] = P(128, a); s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="1.6"/>`; });
   const ff = 'font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif"';
   let [ex, ey] = P(96, 115), [fx, fy] = P(96, 65);
   s += `<text x="${ex.toFixed(0)}" y="${(ey + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>E</text><text x="${fx.toFixed(0)}" y="${(fy + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>F</text>`;
-  s += `<text id="rng" x="170" y="240" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}></text>`;
+  s += `<text id="rng" display="none" x="170" y="240" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}></text>`;
+  s += `<path id="holdR" d="" fill="none" stroke="#ff2d2d" stroke-width="18" filter="url(#gl)"/>`;
   s += `<g id="ndl" transform="rotate(135 170 170)" opacity="0"><line x1="232" y1="170" x2="304" y2="170" stroke="rgba(255,150,30,.55)" stroke-width="11" stroke-linecap="round" filter="url(#gl)"/><line x1="232" y1="170" x2="304" y2="170" stroke="#ffbb33" stroke-width="9" stroke-linecap="round"/><line x1="232" y1="170" x2="304" y2="170" stroke="#ffe08a" stroke-width="2.5" stroke-linecap="round" opacity=".55"/></g>`;
   s += `<text id="spd" x="170" y="188" fill="#fff" font-size="60" text-anchor="middle" letter-spacing="-1" ${ff} opacity="0">0</text><text id="kmh" x="170" y="208" fill="#8c8c8c" font-size="14" text-anchor="middle" ${ff} opacity="0">km/h</text>`;
   return s + '</svg>';
@@ -401,9 +425,10 @@ function mountDrive() {
   <div class="pop" id="dPop" hidden></div>
   <div class="dialbox" id="dBox"><img class="logo" id="dLogo" src="vuelta-logo.png" alt=""></div>
   <div id="holdOv"><svg viewBox="0 0 240 240" width="240" height="240"><circle cx="120" cy="120" r="100" fill="rgba(0,0,0,.82)" stroke="#2a2a2a" stroke-width="10"/><circle id="holdP" cx="120" cy="120" r="100" fill="none" stroke="#e0242c" stroke-width="10" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="628" transform="rotate(-90 120 120)"/><text x="120" y="112" text-anchor="middle" fill="#fff" font-size="44" font-family="-apple-system,Helvetica Neue,sans-serif" id="holdT">2,0 s</text><text x="120" y="146" text-anchor="middle" fill="#8c8c8c" font-size="15" letter-spacing="2" font-family="-apple-system,Helvetica Neue,sans-serif">FAHRT BEENDEN</text></svg></div>
-  <div class="foot fade"><b id="oA"></b><span class="c" id="dAqi"></span><div class="endw"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><i></i></div><small>2 S HALTEN</small></div></div>
+  <div class="foot fade"><b id="oA"></b><span class="c" id="dAqi"></span></div>
   <div class="mid"><div class="cv fade"><div class="ch"><span>TEMPO · 30 MIN</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
   <div class="tiles fade" id="dTiles"></div></div>
+<div class="endw endb"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><svg class="haz" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#ff2d2d" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3.2 22 20.5H2z"/><path d="M12 9.5 16.6 17.6H7.4z" stroke-width="1.6"/></svg></div><small>2 S HALTEN · BEENDEN</small></div>
   <img class="dlogo" src="vuelta-logo.png" alt="Vuelta">
 `;
   $('#dSvc').addEventListener('click', e => { const b = e.target.closest('.ib'); if (!b) return; const nm = b.dataset.sv, pop = $('#dPop'); clearTimeout(drv.pt); if (drv.pop === nm) { drv.pop = null; pop.hidden = true; return; } drv.pop = nm; const inf = svcInfo(nm); pop.innerHTML = `<b>${nm}</b><span>${inf ? inf.text : ''}</span>`; pop.hidden = false; drv.pt = setTimeout(() => { drv.pop = null; pop.hidden = true; }, 6000); });
@@ -446,14 +471,19 @@ function driveFrame(ts) {
     dv = drv.dv; reach = 1e9;
   }
   const el = rec.m > 0 ? rec.m / ((now - new Date(rec.start)) / 1000) * 3.6 : null;
+  /* Beim Halten läuft die Nadel gegen den Uhrzeigersinn von 100 auf 0, der rote Ring folgt ihr */
+  const ph = drv.hold ? Math.min(1, (performance.now() - drv.hold) / 2000) : 0;
+  if (ph > 0) { const k = ease(Math.min(1, ph / .15)), down = drv.hi * (1 - ease(ph)); dv = dv + (down - dv) * k; G('ndl').setAttribute('opacity', 1); }
   paintDial(dv, reach, el);
-  const sp = G('spd'), txt = String(drv.introDone ? Math.round(target) : 0);
-  if (sp.textContent !== txt) { sp.textContent = txt; sp.setAttribute('font-size', Math.round(target) >= 100 ? 48 : 60); sp.setAttribute('y', Math.round(target) >= 100 ? 186 : 188); }
-  /* 2 s halten zum Beenden */
+  /* 2 s halten zum Beenden: roter Ring wächst über den Goldrahmen, Mitte zählt runter */
   const p = drv.hold ? Math.min(1, (performance.now() - drv.hold) / 2000) : 0;
+  const sp = G('spd'), txt = p > 0 ? (p >= 1 ? 'ENDE' : (2 - 2 * p).toFixed(1).replace('.', ',')) : String(drv.introDone ? Math.round(target) : 0);
+  if (sp.textContent !== txt) { sp.textContent = txt; const big = p > 0 || Math.round(target) >= 100; sp.setAttribute('font-size', p > 0 ? 52 : big ? 48 : 60); sp.setAttribute('y', big ? 186 : 188); sp.setAttribute('fill', p > 0 ? '#ff2d2d' : '#fff'); G('kmh').textContent = p > 0 ? 'FAHRT BEENDEN' : 'km/h'; }
+  const hr = G('holdR'); if (hr) hr.setAttribute('d', p > 0.002 ? arcd(150, 135 + 270 * (1 - ease(p)), 405) : '');
+  if (!p && drv.introDone && !db.settings.needle) G('ndl').setAttribute('opacity', 0);
   G('endP').setAttribute('stroke-dashoffset', 157 * (1 - p));
   $('#endBtn').style.transform = 'scale(' + (1 + .14 * p).toFixed(3) + ')';
-  const ov = G('holdOv'); ov.style.opacity = p > 0 ? 1 : 0; G('holdP').setAttribute('stroke-dashoffset', 628 * (1 - p)); G('holdT').textContent = p >= 1 ? 'ENDE' : (2 - 2 * p).toFixed(1).replace('.', ',') + ' s';
+  const ov = G('holdOv'); ov.style.opacity = 0; G('holdP').setAttribute('stroke-dashoffset', 628 * (1 - p)); G('holdT').textContent = p >= 1 ? 'ENDE' : (2 - 2 * p).toFixed(1).replace('.', ',') + ' s';
   const st = p >= 1 ? 4 : p >= .75 ? 3 : p >= .5 ? 2 : p >= .25 ? 1 : 0;
   if (drv.hold && st > (drv.hs || 0)) { drv.hs = st; if (st < 4) hap(st === 3 ? 2 : 1); }
   if (p >= 1) { drv.hold = 0; hap(3); stopTrip(); return; }
@@ -468,9 +498,9 @@ function driveSecond(stale) {
   G('dClock').textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   G('dDate').textContent = WD[now.getDay()] + ' ' + now.getDate() + '. ' + MO[now.getMonth()];
   const w = rec.weather, wi = w ? weatherInfo(w.code) : { wet: false }, ice = w && (w.temp <= 0 || (w.temp <= 3 && wi.wet));
-  let chips = `<span class="c md">${commuteTime() ? 'Pendeln' : 'Freizeit'}</span>`;
-  if (wi.wet) chips += `<span class="c on">${ic('drop', 14)} Nass</span>`; else if (w) chips += `<span class="c ok">Trocken</span>`;
-  if (ice) chips += `<span class="c w">${ic('flake', 14)} Glatteisgefahr</span>`;
+  let chips = `<span class="info">${ic(commuteTime() ? 'work' : 'route', 13)} ${commuteTime() ? 'Pendeln' : 'Freizeit'}</span>`;
+  if (wi.wet) chips += `<span class="info">${ic('drop', 13)} Nass</span>`; else if (w) chips += `<span class="info">${ic('cloud', 13)} Trocken</span>`;
+  if (ice) chips += `<span class="info">${lamp(1).replace('bald', 'Glätte')}</span>`;
   if (G('dChips').innerHTML !== chips) G('dChips').innerHTML = chips;
   const odo = Math.floor(currentOdo() + liveKm()), os = nf(odo, 0);
   G('oA').textContent = os;
@@ -482,8 +512,8 @@ function driveSecond(stale) {
   for (let i = 0; i <= 60; i++) { const e = G('fu' + i); if (e) e.setAttribute('stroke', ts && i / 60 <= ts.frac ? col : '#2a2a2a'); }
   const rg = G('rng'); if (rg) { rg.textContent = ts ? '≈ ' + Math.round(ts.range) + ' km' : 'TANK ?'; rg.setAttribute('fill', ts ? col : '#8c8c8c'); rg.setAttribute('opacity', drv.introDone ? 1 : ease((performance.now() - drv.t0) / 1000 - 5.0)); }
   ['Ölwechsel', 'Inspektion'].forEach((nm, i) => { const bt = G('dSvc').children[i], inf = svcInfo(nm); bt.style.display = inf ? '' : 'none'; if (!inf) return; bt.className = 'ib' + (inf.level === 2 ? ' e' : inf.level === 1 ? ' w' : ''); if (!bt.firstChild) bt.innerHTML = ic(i ? 'wrench' : 'oil', 22); if (drv.pop === nm) G('dPop').innerHTML = `<b>${nm}</b><span>${inf.text}</span>`; });
-  G('dAqi').style.display = rec.aqi != null ? '' : 'none';
-  if (rec.aqi != null) G('dAqi').textContent = 'Luft ' + rec.aqi;
+  const wd = rec.weather && rec.weather.wind != null; G('dAqi').style.display = wd ? '' : 'none';
+  if (wd) { G('dAqi').innerHTML = ic('wind', 13) + ' ' + rec.weather.wind + ' km/h · Böen ' + rec.weather.gust; G('dAqi').className = 'info' + (rec.weather.gust >= 45 ? ' gw' : ''); }
 }
 
 /* ---------- Auswertungen ---------- */
@@ -551,7 +581,102 @@ function typeChart(ms) {
 
 /* ---------- Views ---------- */
 let tripSel = null, dueSel = null, tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
-const HDR = '<div class="hdr"><img src="vuelta-logo.png" alt="Vuelta"><div class="st"><i></i><i></i><u></u></div></div>';
+/* ---------- Grafiken im Health-Stil ---------- */
+const FF = 'font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif"';
+const kh = (i, t, m = '') => `<div class="kh">${i ? ic(i, 15) : ''}<span>${t}</span>${m ? `<em>${m}</em>` : ''}</div>`;
+const lamp = lv => `<span class="lamp ${['off', 'w', 'e'][lv]}">${['ok', 'bald', 'fällig'][lv]}</span>`;
+function weekBars(dd, td, avg) {
+  const W = 326, H = 120, b = 22, gap = (W - 7 * b) / 7, m = Math.max(avg || 0, ...dd, 1), y = v => 96 - 84 * v / m;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
+  dd.forEach((v, i) => { const x = gap / 2 + i * (b + gap), fut = i > td; s += `<rect x="${x}" y="${fut ? 92 : Math.min(92, y(v))}" width="${b}" height="${fut ? 4 : Math.max(4, 96 - y(v))}" rx="5" fill="${fut ? '#1d1d1d' : i === td ? '#efbb3c' : '#d8d8d8'}"/>`; s += `<text x="${x + b / 2}" y="114" text-anchor="middle" font-size="10" fill="${i === td ? '#efbb3c' : '#8e8e93'}" ${FF}>${['M', 'D', 'M', 'D', 'F', 'S', 'S'][i]}</text>`; });
+  if (avg) s += `<line x1="0" x2="${W}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" stroke="#8e8e93" stroke-dasharray="4 4"/><text x="${W}" y="${(y(avg) - 4).toFixed(1)}" text-anchor="end" font-size="9" fill="#8e8e93" ${FF}>Ø ${nf(avg, 0)}</text>`;
+  return s + '</svg>';
+}
+function weekLine(dd, td, avg) {
+  const W = 326, H = 112, x0 = 10, x1 = 316, m = Math.max(avg || 0, ...dd, 1), X = i => x0 + i * (x1 - x0) / 6, Y = v => 92 - 78 * v / m;
+  const pts = dd.slice(0, td + 1).map((v, i) => [X(i), Y(v)]);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><line x1="${x0}" x2="${x1}" y1="92" y2="92" stroke="rgba(255,255,255,.12)"/>`;
+  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3 4"/><text x="${x1}" y="${(Y(avg) - 5).toFixed(1)}" text-anchor="end" font-size="9" fill="#9aa8a5" ${FF}>Ø ${nf(avg, 0)}</text>`;
+  if (pts.length > 1) s += `<path d="${bez(pts)}" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  pts.forEach((p, i) => s += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === td ? 3.6 : 2.2}" fill="${i === td ? '#efbb3c' : '#fff'}"/>`);
+  for (let i = td + 1; i < 7; i++) s += `<circle cx="${X(i)}" cy="92" r="1.6" fill="rgba(255,255,255,.25)"/>`;
+  ['M', 'D', 'M', 'D', 'F', 'S', 'S'].forEach((d, i) => s += `<text x="${X(i)}" y="108" text-anchor="middle" font-size="10" fill="${i === td ? '#efbb3c' : '#9aa8a5'}" ${FF}>${d}</text>`);
+  return s + '</svg>';
+}
+/* Bereich wie Health: dünne graue Kapseln (min–max), Durchschnitt als farbige Linie mit Wert */
+function rangeChart(g, avg, unit, title) {
+  const v = g.filter(x => x.hi > 0); if (!v.length) return '<p class="mu">Noch zu wenige Daten.</p>';
+  const lo = Math.min(...v.map(x => x.lo)), hi = Math.max(...v.map(x => x.hi));
+  const top = Math.ceil(hi * 1.15 / 10) * 10 || 10, W = 326, H = 150, x0 = 4, x1 = 290, n = g.length, bw = Math.min(9, (x1 - x0) / n - 5), Y = y => 128 - y / top * 118;
+  let s = `<div class="rg"><span>${title || 'Bereich'}</span><b>${nf(lo, 0)}–${nf(hi, 0)}<small> ${unit}</small></b></div><svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
+  [0, top / 2, top].forEach(t => s += `<line x1="${x0}" x2="${x1 + 8}" y1="${Y(t)}" y2="${Y(t)}" stroke="#2a2a2c"/><text x="${W}" y="${Y(t) + 4}" text-anchor="end" font-size="10" fill="#8e8e93" ${FF}>${nf(t, 0)}</text>`);
+  g.forEach((x, i) => { const cx = x0 + (i + .5) * (x1 - x0) / n; if (x.l) s += `<line x1="${cx - (x1 - x0) / n / 2}" x2="${cx - (x1 - x0) / n / 2}" y1="8" y2="${H - 4}" stroke="#2a2a2c" stroke-dasharray="2 3"/><text x="${cx - (x1 - x0) / n / 2 + 3}" y="${H - 2}" font-size="10" fill="#8e8e93" ${FF}>${x.l}</text>`;
+    if (x.hi > 0) s += `<rect x="${cx - bw / 2}" y="${Y(x.hi)}" width="${bw}" height="${Math.max(bw, Y(x.lo) - Y(x.hi))}" rx="${bw / 2}" fill="#3a3a3c"/>`; });
+  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#efbb3c" stroke-width="3.2" stroke-linecap="round"/><text x="${x1}" y="${Y(avg) - 7}" text-anchor="end" font-size="13" font-weight="600" fill="#efbb3c" ${FF}>${nf(avg, 0)} ${unit}</text>`;
+  return s + '</svg>';
+}
+const wkGroups = (ts, f, nW = 8) => { const out = []; for (let i = nW - 1; i >= 0; i--) { const a = weekStart(i), b = new Date(+a + 7 * 864e5), xs = ts.filter(t => { const d = new Date(t.start); return d >= a && d < b; }).map(f).filter(x => x != null); out.push({ lo: xs.length ? Math.min(...xs) : 0, hi: xs.length ? Math.max(...xs) : 0, l: a.getDate() <= 7 ? MO[a.getMonth()].charAt(0) + MO[a.getMonth()].slice(1, 3).toLowerCase() : '' }); } return out; };
+function ring(frac, col, sz = 64) {
+  const r = sz / 2 - 6, c = 2 * Math.PI * r;
+  return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="3.5"/><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${(c * Math.max(.02, frac)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${sz / 2} ${sz / 2})"/><circle cx="${(sz / 2 + r * Math.sin(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" cy="${(sz / 2 - r * Math.cos(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" r="3" fill="#0e1110" stroke="${col}" stroke-width="1.8"/></svg>`;
+}
+function cmpBars(a, b, la, lb) {
+  const m = Math.max(a, b, 1);
+  return `<div class="cmp"><div><i style="width:${Math.max(4, a / m * 100)}%;background:#efbb3c"></i><span>${la}</span></div><div><i style="width:${Math.max(4, b / m * 100)}%;background:#5a5a5e"></i><span>${lb}</span></div></div>`;
+}
+function scatter(pts, opt = {}) {
+  const W = 326, H = 130, x0 = 6, x1 = 320; if (pts.length < 2) return '<p class="mu">Noch zu wenige Daten.</p>';
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y), xa = Math.min(...xs), xb = Math.max(...xs) || 1, ya = Math.min(...ys), yb = Math.max(...ys);
+  const lo = Math.floor(ya - 2), hi = Math.ceil(yb + 2), X = x => x0 + (x - xa) / ((xb - xa) || 1) * (x1 - x0), Y = y => 110 - (y - lo) / ((hi - lo) || 1) * 100;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
+  [lo, hi].forEach(v => s += `<line x1="${x0}" x2="${x1}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1d1d1d"/><text x="${x1}" y="${Y(v) - 3}" text-anchor="end" font-size="9" fill="#8e8e93" ${FF}>${v}${opt.u || ''}</text>`);
+  if (opt.trend) { const n = pts.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n, k = pts.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0) / (pts.reduce((a, p) => a + (p.x - mx) ** 2, 0) || 1); s += `<line x1="${X(xa)}" y1="${Y(my + k * (xa - mx))}" x2="${X(xb)}" y2="${Y(my + k * (xb - mx))}" stroke="#efbb3c" stroke-width="1.6" stroke-dasharray="5 4"/>`; }
+  pts.forEach(p => s += `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="3.4" fill="${p.c || '#fff'}"/>`);
+  return s + '</svg>';
+}
+function rangeBars(days) {
+  const W = 326, H = 130, n = days.length, bw = Math.min(14, (W - 10) / n - 6), m = Math.max(60, ...days.map(d => d.hi)), Y = v => 110 - v / m * 100;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><defs>${days.map((d, i) => `<linearGradient id="rg${i}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#6a6a6e"/><stop offset="1" stop-color="${zcol(d.hi)}"/></linearGradient>`).join('')}</defs>`;
+  [0, 50, 100].filter(v => v <= m).forEach(v => s += `<line x1="0" x2="${W}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1d1d1d"/><text x="${W}" y="${Y(v) - 3}" text-anchor="end" font-size="9" fill="#8e8e93" ${FF}>${v}</text>`);
+  days.forEach((d, i) => { const x = 4 + i * (W - 30) / n; if (d.hi) s += `<rect x="${x}" y="${Y(d.hi)}" width="${bw}" height="${Math.max(bw, Y(d.lo) - Y(d.hi))}" rx="${bw / 2}" fill="url(#rg${i})"/>`; s += `<text x="${x + bw / 2}" y="126" text-anchor="middle" font-size="9" fill="#8e8e93" ${FF}>${d.l}</text>`; });
+  return s + '</svg>';
+}
+function zoneCols(ts) {
+  const W = 326, H = 120, n = ts.length, bw = Math.min(18, (W - 10) / n - 8), m = Math.max(1, ...ts.map(t => (t.zk || [0, 0, 0]).reduce((a, b) => a + b, 0)));
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
+  ts.forEach((t, i) => { let y = 104; const x = 6 + i * (W - 12) / n; (t.zk || [t.km, 0, 0]).forEach((v, k) => { const h = v / m * 96; if (h > .5) { y -= h; s += `<rect x="${x}" y="${y.toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" fill="${ZCOL[k]}"/>`; } }); s += `<text x="${x + bw / 2}" y="117" text-anchor="middle" font-size="9" fill="#8e8e93" ${FF}>${new Date(t.start).getDate()}.</text>`; });
+  return s + '</svg>';
+}
+function lineChart(vals, labels, u) {
+  const W = 326, H = 120, x0 = 8, x1 = 300; if (vals.length < 2) return '<p class="mu">Ab zwei vollen Tankungen sichtbar.</p>';
+  const lo = Math.min(...vals) * .9, hi = Math.max(...vals) * 1.1, X = i => x0 + i * (x1 - x0) / (vals.length - 1), Y = v => 100 - (v - lo) / ((hi - lo) || 1) * 88;
+  const pts = vals.map((v, i) => [X(i), Y(v)]);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><path d="${bez(pts)}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>`;
+  pts.forEach((p, i) => s += `<circle cx="${p[0]}" cy="${p[1]}" r="${i === pts.length - 1 ? 4 : 2.6}" fill="${i === pts.length - 1 ? '#efbb3c' : '#fff'}"/>`);
+  s += `<text x="${W}" y="${Y(vals[vals.length - 1]) + 4}" text-anchor="end" font-size="11" fill="#efbb3c" ${FF}>${nf(vals[vals.length - 1], 1)}${u || ''}</text>`;
+  if (labels) labels.forEach((l, i) => { if (i === 0 || i === labels.length - 1) s += `<text x="${X(i)}" y="116" text-anchor="${i ? 'end' : 'start'}" font-size="9" fill="#8e8e93" ${FF}>${l}</text>`; });
+  return s + '</svg>';
+}
+function monthBars(vals, labels, u) {
+  const W = 326, H = 120, n = vals.length, bw = 22, m = Math.max(1, ...vals);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
+  vals.forEach((v, i) => { const x = 8 + i * (W - 16 - bw) / (n - 1), h = Math.max(3, v / m * 84); s += `<rect x="${x}" y="${100 - h}" width="${bw}" height="${h}" rx="5" fill="${i === n - 1 ? '#efbb3c' : '#d8d8d8'}"/><text x="${x + bw / 2}" y="116" text-anchor="middle" font-size="9" fill="#8e8e93" ${FF}>${labels[i]}</text>`; if (v) s += `<text x="${x + bw / 2}" y="${96 - h}" text-anchor="middle" font-size="9" fill="#bbb" ${FF}>${nf(v, 0)}${u || ''}</text>`; });
+  return s + '</svg>';
+}
+function calMonth() {
+  const n = new Date(), y = n.getFullYear(), mo = n.getMonth(), first = new Date(y, mo, 1), off = (first.getDay() + 6) % 7, days = new Date(y, mo + 1, 0).getDate();
+  const set = new Set(db.trips.map(t => t.start.slice(0, 10)));
+  let s = '<div class="cal">' + ['M', 'D', 'M', 'D', 'F', 'S', 'S'].map(d => `<b>${d}</b>`).join('');
+  for (let i = 0; i < off; i++) s += '<i></i>';
+  for (let d = 1; d <= days; d++) { const k = y + '-' + String(mo + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0'); s += `<i class="${set.has(k) ? 'on' : ''} ${d === n.getDate() ? 'td' : ''} ${d > n.getDate() ? 'fu' : ''}">${d}</i>`; }
+  return s + '</div>';
+}
+const tcol = t => { const k = Math.max(0, Math.min(1, (t + 2) / 24)); const a = [127, 154, 168], b = [245, 245, 240]; return `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * k)).join(',')})`; };
+function trendTile(i, l, v, d, good) {
+  const up = d > 0, col = d === 0 ? '#8e8e93' : (good ? '#d8d8d8' : '#ff8a4d');
+  return `<div class="t trd">${kh(i, l)}<b>${v}</b><span style="color:${col}">${d === 0 ? '→ gleich' : (up ? '↑ ' : '↓ ') + Math.abs(d)}</span></div>`;
+}
+const HDR = '<div class="hdr"><img src="vuelta-logo.png" alt="Vuelta"></div><div class="vst"><u></u><i></i><i></i></div>';
 function miniCurve(a, w, h) {
   if (a.length < 2) a = [0, ...a];
   const m = Math.max(1, ...a), pts = a.map((x, i) => [4 + i * (w - 8) / (a.length - 1), h - 4 - (h - 10) * x / m]);
@@ -560,46 +685,49 @@ function miniCurve(a, w, h) {
   return s + '</svg>';
 }
 const daysAgo = s => s ? (Date.now() - new Date(s)) / 864e5 : 1e9;
+const icn = n => /öl/i.test(n) ? 'oil' : /insp/i.test(n) ? 'wrench' : /hu|tüv/i.test(n) ? 'note' : /reif/i.test(n) ? 'tire' : /variator|riemen/i.test(n) ? 'bolt' : 'wrench';
+const remCard = (r, s2) => `<div class="card rem">${kh(icn(r.name), esc(r.name), lamp(s2.level))}<div class="rt">${esc(s2.text)}</div><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="ghost lnk" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`;
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
   fetchForecast();
   const odo = currentOdo(), due = db.reminders.map(r => ({ r, s: reminderStatus(r) })).filter(x => x.s.level > 0), ts = tankState(), pk = db.settings.parked;
   let h = '';
-  (fc ? fc.warns : []).forEach(w => h += `<div class="card warn"><b>${ic(w.icon, 16)} ${esc(w.t)}</b><span class="l">${esc(w.d)}</span></div>`);
-  if (daysAgo(db.settings.odoCheck || db.settings.odoDate) > 30) h += `<button class="card btn" data-a="odophoto"><div class="r"><div><b>Kilometerstand abgleichen</b><span class="l">Tacho fotografieren · einmal im Monat</span></div>${ic('speed', 22)}</div></button>`;
-  if (db.trips.length && daysAgo(db.settings.lastBackup) > 7) h += `<button class="card btn" data-a="export"><div class="r"><div><b>Daten sichern</b><span class="l">${db.settings.lastBackup ? 'Letzte Sicherung vor ' + Math.floor(daysAgo(db.settings.lastBackup)) + ' Tagen' : 'Noch nie gesichert'} · in Dateien / iCloud</span></div>${ic('note', 22)}</div></button>`;
-  /* Hauptkachel: Woche mit Kurve Mo–heute und Vergleich zum gleichen Zeitraum der Vorwoche */
+  (fc ? fc.warns : []).forEach(w => h += `<div class="card wx">${kh(w.icon, esc(w.t), lamp(1).replace('bald', 'Achtung'))}<div class="rt">${esc(w.d)}</div></div>`);
+  if (daysAgo(db.settings.odoCheck || db.settings.odoDate) > 30) h += `<button class="actb" data-a="odophoto"><span>Kilometerstand abgleichen</span>${ic('speed', 17)}</button>`;
+  if (db.trips.length && daysAgo(db.settings.lastBackup) > 7) h += `<button class="actb" data-a="export"><span>Daten sichern <small>· ${db.settings.lastBackup ? 'vor ' + Math.floor(daysAgo(db.settings.lastBackup)) + ' Tagen' : 'nie gesichert'}</small></span>${ic('note', 17)}</button>`;
   const ws = weekStart(0), dd = [0, 0, 0, 0, 0, 0, 0]; db.trips.forEach(t => { const i = Math.floor((new Date(t.start) - ws) / 864e5); if (i >= 0 && i < 7) dd[i] += t.km; });
   const td = (new Date().getDay() + 6) % 7, ps = weekStart(1), pe = new Date(+ps + (td + 1) * 864e5);
-  const prev = db.trips.filter(x => { const d = new Date(x.start); return d >= ps && d < pe; }).reduce((a, x) => a + x.km, 0), cur = weekKm(0), pc = prev ? Math.round((cur - prev) / prev * 100) : null;
-  h += `<div class="g2"><div class="t hero"><b>${nf(cur, 0)}</b><span>km diese Woche</span><div class="hx">${miniCurve(dd.slice(0, td + 1), 150, 44)}<div class="hxl"><span>MO</span><span>${WD[new Date().getDay()]}</span></div>${pc != null ? `<div class="hxp ${pc >= 0 ? 'up' : 'dn'}">${pc >= 0 ? '+' : ''}${pc} % zur Vorwoche</div>` : ''}</div></div>
-  <div class="t"><b>${nf(odo, 0)}</b><span>km gesamt</span></div>
-  <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank"><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><span>${ts ? 'Tank · ≈ ' + Math.round(ts.range) + ' km' : 'Tank · tippen'}</span>${ts ? `<div class="tb"><u style="width:${Math.round(ts.frac * 100)}%"></u></div>` : ''}</button></div>`;
-  if (due.length) {
-    const icn = n => /öl/i.test(n) ? 'oil' : /insp/i.test(n) ? 'wrench' : /hu|tüv/i.test(n) ? 'note' : /reif/i.test(n) ? 'tire' : /variator|riemen/i.test(n) ? 'bolt' : 'wrench';
-    const sel = due.find(x => x.r.id === dueSel);
-    h += `<div class="sec">Fällig</div><div class="dueRow">` + due.map(x => `<button class="ib2 ${x.s.level === 2 ? 'e' : 'w'} ${sel && sel.r.id === x.r.id ? 'on' : ''}" data-a="duesel" data-id="${x.r.id}" aria-label="${esc(x.r.name)}">${ic(icn(x.r.name), 24)}</button>`).join('') + `</div>`;
-    if (sel) h += `<div class="card ${sel.s.level === 2 ? 'danger' : 'warn'}"><b>${esc(sel.r.name)}</b><span class="l">${esc(sel.s.text)}</span><div class="r" style="margin-top:10px;gap:8px"><button class="sm" data-a="donerem" data-id="${sel.r.id}">Erledigt</button><button class="sm" data-a="editrem" data-id="${sel.r.id}">Bearbeiten</button></div></div>`;
+  const prev = db.trips.filter(x => { const d = new Date(x.start); return d >= ps && d < pe; }).reduce((a, x) => a + x.km, 0), cur = weekKm(0);
+  const avgDay = [1, 2, 3, 4].map(weekKm).reduce((a, b) => a + b, 0) / 28;
+  h += `<div class="g2"><div class="t hero">${kh('route', 'Diese Woche', 'Ø ' + nf(avgDay, 0) + ' km / Tag')}<div class="hv"><b>${nf(cur, 0)}</b><small>km</small></div>${weekLine(dd, td, avgDay)}</div>
+  <div class="t">${kh('speed', 'Gesamt')}<b>${nf(odo, 0)}</b><span>km</span></div>
+  <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km' : 'tippen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 52) : ''}</div></button></div>`;
+  if (fc && fc.wind != null) h += `<div class="card now">${kh('wind', 'Jetzt draußen', fc.gust >= 45 ? lamp(1).replace('bald', 'Böen') : '')}<div class="nw"><div><b>${fc.wind}<small> km/h</small></b><span class="info">Wind aus ${dirName(fc.wdir)} <svg width="13" height="13" viewBox="0 0 24 24" style="transform:rotate(${Math.round(fc.wdir + 180)}deg)" fill="none" stroke="#a8a8ae" stroke-width="2" stroke-linejoin="round"><path d="M12 3l7 17-7-4-7 4z"/></svg></span></div><div><b>${fc.gust}<small> km/h</small></b><span class="info">Böen</span></div><div><b>${nf(fc.temp, 0)}<small> °C</small></b><span class="info">${weatherInfo(fc.code).t}</span></div></div></div>`;
+  if (prev || cur) {
+    const pc = prev ? Math.round((cur - prev) / prev * 100) : 0;
+    h += `<div class="sec">Highlights</div><div class="card hl">${kh('route', 'Kilometer')}<p>${prev ? (pc >= 0 ? `Diese Woche bist du bisher <b>${pc} % mehr</b> gefahren als bis zum gleichen Tag letzter Woche.` : `Diese Woche bist du bisher <b>${-pc} % weniger</b> gefahren als bis zum gleichen Tag letzter Woche.`) : 'Erste Woche mit Fahrten – weiter so.'}</p>${cmpBars(cur, prev, nf(cur, 0) + ' km · diese Woche', nf(prev, 0) + ' km · letzte Woche')}</div>`;
   }
+  if (due.length) { h += `<div class="sec">Fällig</div>`; due.forEach(x => h += remCard(x.r, x.s)); }
   const lt = db.trips.slice().sort((a, b) => b.start.localeCompare(a.start))[0];
-  if (lt) h += `<div class="sec">Letzte Fahrt</div><button class="card btn last" data-a="lasttrip" data-id="${lt.id}"><div class="r"><b class="big">${nf(lt.km, 1)}<small> km</small></b><span class="l" style="margin:0">${fmtDay(lt.start)} · ${fmtTime(lt.start)}</span></div><div class="r2"><span>${Math.round(lt.dur / 60)} min</span><span class="y">Ø ${lt.avg}</span><span>${lt.commute ? 'Pendeln' : 'Freizeit'}</span></div>${lt.zk ? zb(lt.zk) : ''}</button>`;
-  if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden"><div class="r"><div><b>Roller finden</b><span class="l">geparkt ${fmtDay(pk.t)} · ${fmtTime(pk.t)}</span></div>${ic('pin', 22)}</div></button>`;
+  if (lt) h += `<div class="sec">Letzte Fahrt</div><button class="card btn last" data-a="lasttrip" data-id="${lt.id}">${kh('navi', ftLabel(lt) || fmtDay(lt.start), (ftLabel(lt) ? fmtDay(lt.start) + ' · ' : '') + fmtTime(lt.start))}<div class="r"><b class="big">${nf(lt.km, 1)}<small> km</small></b></div><div class="r2"><span>${Math.round(lt.dur / 60)} min</span><span class="y">Ø ${lt.avg}</span><span>${lt.commute ? 'Pendeln' : 'Freizeit'}</span></div>${lt.zk ? zb(lt.zk) : ''}<span class="chev">›</span></button>`;
+  if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden">${kh('pin', 'Roller finden', fmtTime(pk.t))}<span class="rt">geparkt ${fmtDay(pk.t)}</span><span class="chev">›</span></button>`;
   return h;
 }
 /* Roller finden */
 let fnd = null;
 function viewFinden() {
   const pk = db.settings.parked;
-  let h = `<div class="h">Roller finden</div>`;
+  let h = '';
   if (!pk) return h + `<p class="mu">Noch kein Standort gespeichert. Er wird beim Beenden einer Fahrt automatisch gemerkt – oder jetzt von Hand:</p><button class="pill" data-a="parknow">${ic('pin', 14)} Standort jetzt merken</button>`;
-  let ticks = '';
-  for (let a = 0; a < 360; a += 6) { const r2 = a % 30 === 0 ? 130 : 124, c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180); ticks += `<line x1="${(150 + 118 * c).toFixed(1)}" y1="${(150 + 118 * s).toFixed(1)}" x2="${(150 + r2 * c).toFixed(1)}" y2="${(150 + r2 * s).toFixed(1)}" stroke="${a % 30 === 0 ? '#d8d8d8' : '#555'}" stroke-width="${a % 30 === 0 ? 2.4 : 1}"/>`; }
-  h += `<div class="finder"><svg width="300" height="300" viewBox="0 0 300 300"><circle cx="150" cy="150" r="138" fill="#050505" stroke="#2e2e2e" stroke-width="3"/>${ticks}<text x="150" y="62" fill="#fff" font-size="15" text-anchor="middle">N</text><g id="fArrow" transform="rotate(0 150 150)"><path d="M150 52 L176 128 L150 112 L124 128 Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g></svg></div>
-  <div class="dist"><b id="fDist">–</b><small id="fUnit"> m</small><span class="l" id="fInfo">${ic('clock', 13)} Geparkt ${fmtTime(pk.t)} · ${fmtDay(pk.t)}</span></div>
-  <div class="g2" style="margin-top:14px"><div class="t"><b id="fDir">–</b><span>Richtung</span></div><div class="t"><b id="fWalk">–</b><span>zu Fuß</span></div></div>
-  <p class="mu" id="fHint">Der Pfeil zeigt relativ zu deiner Gehrichtung. Tipp „Kompass erlauben“, damit er auch im Stand stimmt.</p>
-  <div class="g2"><button class="pill" data-a="compass">Kompass erlauben</button><button class="pill" data-a="parknow">Neu merken</button></div>`;
+  /* Präzisionssuche wie AirTag: großer Pfeil, große Entfernung, Hinweis in Worten, Punktefeld */
+  let dots = ''; for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) { const x = 30 + c * 30, y = 30 + r * 30, dd = Math.hypot(x - 150, y - 150); if (dd < 135 && dd > 70) dots += `<circle cx="${x}" cy="${y}" r="2.2" fill="#fff" opacity="${(.32 - dd / 600).toFixed(2)}"/>`; }
+  h += `<div class="pf" id="pf"><div class="pfd"><b id="fDist">–</b><small id="fUnit"> m</small></div><div class="pfh" id="fTxt">Bewege dein iPhone</div>
+  <svg class="pfa" viewBox="0 0 300 300" width="280" height="280">${dots}<g id="fArrow" transform="rotate(0 150 150)"><path d="M150 58 L196 160 Q200 170 190 168 L162 160 L162 236 Q162 246 150 246 Q138 246 138 236 L138 160 L110 168 Q100 170 104 160 Z" fill="#fff" stroke="#fff" stroke-width="10" stroke-linejoin="round"/></g></svg>
+  <div class="pfi"><span class="info">${ic('clock', 13)} geparkt ${fmtTime(pk.t)} · ${fmtDay(pk.t)}</span><span class="info"><b id="fDir">–</b> · <b id="fWalk">–</b> zu Fuß</span></div></div>
+  <p class="mu" id="fHint" style="text-align:center">Für die Richtung im Stand: „Kompass erlauben“.</p>
+  <div class="g2"><button class="pill" data-a="compass">Kompass erlauben</button><button class="pill" data-a="parknow">Neu merken</button></div>
+  <button class="pill" style="margin-top:10px;width:100%" data-a="maps">${ic('navi', 14)} In Karten öffnen</button>`;
   return h;
 }
 function finderStart() {
@@ -619,31 +747,43 @@ function finderUpdate() {
   G('fArrow').setAttribute('transform', `rotate(${((b - hd + 360) % 360).toFixed(1)} 150 150)`);
   G('fDist').textContent = d < 1000 ? Math.round(d) : nf(d / 1000, 1); G('fUnit').textContent = d < 1000 ? ' m' : ' km';
   G('fDir').textContent = dirName(b); G('fWalk').textContent = Math.max(1, Math.round(d / 80)) + ' min';
+  const rel = ((b - hd + 540) % 360) - 180, ok = Math.abs(rel) < 18, pf = G('pf');
+  if (pf) pf.classList.toggle('on', ok);
+  const tx = G('fTxt'); if (tx) tx.textContent = d < 8 ? 'Hier' : ok ? 'Vor dir' : Math.abs(rel) > 150 ? 'Hinter dir' : rel < 0 ? 'Links' : 'Rechts';
 }
 /* Tanken */
 function viewTanken() {
-  const ts = tankState(); let h = `<div class="h">Tanken</div>`;
-  h += ts ? `<div class="card ${ts.frac < .25 ? 'warn' : ''}"><div class="r"><div><b>Tank ${Math.round(ts.frac * 100)} %</b><span class="l">≈ ${Math.round(ts.range)} km · ${nf(ts.liters, 1)} l (geschätzt)</span></div>${ic('fuel', 22)}</div></div>` : `<div class="card"><b>Tankstand unbekannt</b><span class="l">Volle Tankung mit Kilometerstand eintragen</span></div>`;
+  const ts = tankState(); let h = '';
+  h += `<div class="g2"><div class="t hero tk ${ts && ts.frac < .25 ? 'low' : ''}">${kh('fuel', 'Tank', ts ? 'geschätzt' : '')}<div class="tv"><div class="hv"><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><small>${ts ? '≈ ' + Math.round(ts.range) + ' km · ' + nf(ts.liters, 1) + ' l' : 'volle Tankung eintragen'}</small></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 64) : ''}</div></div></div>`;
   h += `<div class="sec">Günstig in der Nähe</div>`;
-  if (!db.settings.tkKey) h += `<div class="card"><b>Schlüssel fehlt</b><span class="l">Kostenlos auf creativecommons.tankerkoenig.de anfordern und unter Mehr → Einstellungen eintragen.</span></div>`;
+  if (!db.settings.tkKey) h += `<button class="actb" data-a="settings"><span>Tankerkönig-Schlüssel eintragen</span>${ic('fuel', 17)}</button><p class="mu">Kostenlos auf creativecommons.tankerkoenig.de</p>`;
   else if (!stations || stations.loading) h += `<p class="mu">Lade Preise …</p>`;
-  else if (stations.err) h += `<div class="card warn"><b>Preise nicht erreichbar</b><span class="l">Netz oder Schlüssel prüfen</span></div>`;
+  else if (stations.err) h += `<div class="card">${kh('fuel', 'Preise nicht erreichbar', lamp(1))}<div class="rt">Netz oder Schlüssel prüfen</div></div>`;
   else if (!stations.list.length) h += `<p class="mu">Keine geöffnete Tankstelle gefunden.</p>`;
-  else stations.list.forEach((s, i) => h += `<button class="card btn ${i === 0 ? 'good' : ''}" data-a="route" data-i="${i}"><div class="r"><div><b>${esc(s.n)}</b><span class="l">${ic('pin', 12)} ${nf(s.dist, 1)} km</span></div><div style="text-align:right"><b class="big" style="${i === 0 ? 'color:var(--g)' : ''}">${nf(s.price, 2)}</b><span class="l">E10 · €/l</span></div></div></button>`);
+  else stations.list.forEach((x, i) => h += `<button class="card btn" data-a="route" data-i="${i}">${kh('pin', esc(x.n), nf(x.dist, 1) + ' km')}<div class="r"><b class="big"${i === 0 ? ' style="color:var(--rg)"' : ''}>${nf(x.price, 2)}<small> €/l · E10</small></b>${i === 0 ? '<span class="tag">günstigste</span>' : ''}</div>CHEV</button>`.replace('CHEV', '<span class="chev">›</span>'));
   return h + (stations && stations.list ? '<p class="mu">Preise: Tankerkönig (CC BY 4.0)</p>' : '');
 }
 function viewFahrten() {
+  nameOldTrips();
   const all = db.trips, total = all.reduce((a, x) => a + x.km, 0);
   const f = { all: () => true, commute: t => t.commute, free: t => !t.commute, cold: t => t.temp != null && t.temp <= 5 }[fFilter];
   const t = all.filter(f), chip = (k, l, c = 'on') => `<button class="c ${fFilter === k ? c : ''}" data-a="ff" data-f="${k}">${l}</button>`;
   const wk = [7, 6, 5, 4, 3, 2, 1, 0].map(i => weekKm(i));
-  return `<div class="g2"><div class="t hero"><b>${nf(total, 0)}</b><span>km gefahren</span><div class="hx">${miniCurve(wk, 150, 44)}<div class="hxl"><span>8 WO.</span><span>JETZT</span></div></div></div>
-  <div class="t"><b>${all.length}</b><span>Fahrten</span></div><div class="t"><b>${all.length ? nf(total / all.length, 1) : '–'}</b><span>km Ø pro Fahrt</span></div></div>
-  <div class="chips" style="margin-top:12px">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
+  const t0 = Date.now() - 56 * 864e5, cm = all.filter(x => x.commute && x.dur > 120 && new Date(x.start) > t0).map(x => ({ x: (new Date(x.start) - t0) / 864e5, y: Math.round(x.dur / 60) }));
+  const dl = []; for (let i = 13; i >= 0; i--) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i); const k = d.toISOString().slice(0, 10), ts2 = all.filter(x => new Date(x.start).toDateString() === d.toDateString()); dl.push({ l: i % 2 ? '' : d.getDate() + '.', lo: ts2.length ? Math.min(...ts2.map(x => x.avg || 0)) : 0, hi: ts2.length ? Math.max(...ts2.map(x => x.max || x.avg || 0)) : 0 }); }
+  const last10 = all.slice().sort((a, b) => a.start.localeCompare(b.start)).slice(-10);
+  return `<div class="g2"><div class="t hero">${kh('route', 'Gefahren', '8 Wochen')}<div class="hv"><b>${nf(total, 0)}</b><small>km</small></div><div class="hx">${miniCurve(wk, 150, 44)}<div class="hxl"><span>8 WO.</span><span>JETZT</span></div></div></div>
+  <div class="t">${kh('navi', 'Fahrten')}<b>${all.length}</b></div><div class="t">${kh('speed', 'Ø pro Fahrt')}<b>${all.length ? nf(total / all.length, 1) : '–'}</b><span>km</span></div></div>
+  <div class="sec">Auswertung</div>
+  <div class="card">${kh('clock', 'Pendelzeit', '8 Wochen')}${rangeChart(wkGroups(all.filter(x => x.commute && x.dur > 120), x => Math.round(x.dur / 60)), cm.length ? cm.reduce((a, p) => a + p.y, 0) / cm.length : 0, 'min')}</div>
+  <div class="card">${kh('speed', 'Tempo', 'Ø bis Höchstwert · 8 Wochen')}${rangeChart(wkGroups(all, x => x.max || x.avg).map((g, i) => ({ ...g, lo: wkGroups(all, x => x.avg)[i].lo })), all.length ? all.reduce((a, x) => a + (x.avg || 0), 0) / all.length : 0, 'km/h')}</div>
+  <div class="card">${kh('bab', 'Zonen', '4 Wochen')}${(() => { const z = [0, 0, 0]; all.filter(x => Date.now() - new Date(x.start) < 28 * 864e5).forEach(x => (x.zk || [x.km, 0, 0]).forEach((v, k) => z[k] += v)); const S = z[0] + z[1] + z[2] || 1; return `<div class="zl">${z.map((v, k) => `<i style="flex:${Math.max(v / S, .002)};background:${ZCOL[k]}"></i>`).join('')}</div><div class="lg">${['Stadt', 'Land', 'Autobahn'].map((n, k) => `<span><i style="background:${ZCOL[k]}"></i>${n} ${Math.round(z[k] / S * 100)} %</span>`).join('')}</div>`; })()}</div>
+  <div class="sec">Alle Fahrten</div>
+  <div class="chips">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
   ${t.length ? t.map(x => {
     const w = weatherInfo(x.code);
-    return `<div class="card tripc" data-a="opentrip" data-id="${x.id}"><div class="r"><div><b class="big">${nf(x.km, 1)}<small> km</small></b><span class="l">${fmtDay(x.start)} · ${fmtTime(x.start)}</span></div>${spark(x.spark)}</div>
-    <div class="r2"><span>${Math.round(x.dur / 60)} min</span><span class="y">Ø ${x.avg}</span>${x.temp != null ? `<span>${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(x.temp, 0)}°C</span>` : ''}<span>${x.commute ? 'Pendeln' : 'Freizeit'}</span><button class="ghost" style="margin-left:auto;font-size:11px;letter-spacing:.14em" data-a="deltrip" data-id="${x.id}">LÖSCHEN</button></div>${x.zk ? zb(x.zk) : ''}</div>`;
+    return `<div class="card tripc" data-a="opentrip" data-id="${x.id}"><div class="r"><div><b class="big">${nf(x.km, 1)}<small> km</small></b><span class="l">${fmtDay(x.start)} · ${fmtTime(x.start)}</span></div><span class="ft">${ftLabel(x)}</span></div>
+    <div class="r2"><span>${Math.round(x.dur / 60)} min</span><span class="y">Ø ${x.avg}</span>${x.temp != null ? `<span>${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(x.temp, 0)}°C</span>` : ''}<span>${x.commute ? 'Pendeln' : 'Freizeit'}</span></div>${x.zk ? zb(x.zk) : ''}<span class="chev">›</span></div>`;
   }).join('') : '<p class="mu">Keine Fahrten in dieser Ansicht.</p>'}`;
 }
 function tripMap(rt) {
@@ -676,6 +816,16 @@ function initTripMap() {
     const div = document.createElement('div'); div.className = 'mlmap'; box.appendChild(div);
     const map = new maplibregl.Map({ container: div, style: 'https://tiles.openfreemap.org/styles/dark', bounds: [[bb[0], bb[1]], [bb[2], bb[3]]], fitBoundsOptions: { padding: 28 }, interactive: false, attributionControl: false, fadeDuration: 0 });
     map.on('load', () => {
+      /* Orientierung: Wasser, Grünflächen, Sehenswürdigkeiten dezent hervorheben */
+      try { map.getStyle().layers.forEach(L => {
+        const sl = L['source-layer'] || '', id = L.id, set = (k, v) => { try { map.setPaintProperty(id, k, v); } catch (e) { } };
+        if (sl === 'water' && L.type === 'fill') set('fill-color', '#163a3a');
+        if (sl === 'waterway' && L.type === 'line') set('line-color', '#1f5250');
+        if ((sl === 'park' || /park|wood|grass|forest|landcover/.test(id)) && L.type === 'fill') { set('fill-color', '#16301f'); set('fill-opacity', .9); }
+        if (sl === 'water_name' && L.type === 'symbol') set('text-color', '#6fb3a6');
+        if (sl === 'poi' && L.type === 'symbol') { set('text-color', '#d7c08f'); set('text-halo-color', '#000'); set('icon-opacity', .8); try { map.setFilter(id, ['<=', ['get', 'rank'], 12]); } catch (e) { } }
+        if (sl === 'transportation_name' && L.type === 'symbol') set('text-color', '#9a9a9e');
+      }); } catch (e) { }
       map.addSource('r', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: co } } });
       map.addLayer({ id: 'rc', type: 'line', source: 'r', paint: { 'line-color': '#000', 'line-width': 7, 'line-opacity': .6 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
       map.addLayer({ id: 'rl', type: 'line', source: 'r', paint: { 'line-color': '#efbb3c', 'line-width': 3.4 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
@@ -703,21 +853,17 @@ function viewTrip() {
   const t = db.trips.find(x => x.id === tripSel); if (!t) { sub = null; return viewFahrten(); }
   const w = weatherInfo(t.code), ser = (t.ser && t.ser.length > 1) ? t.ser : (t.spark || []), zk = t.zk || [0, 0, 0], zs = (zk[0] + zk[1] + zk[2]) || 1;
   const mvT = Math.max(60, t.dur - (t.stop || 0)), mvAvg = Math.round(t.km / (mvT / 3600)), cons = avgCons() || 3.1;
-  const tile = (v, l, c) => `<div class="t"><b${c ? ` class="${c}"` : ''}>${v}</b><span>${l}</span></div>`;
-  const zr = [['city', 'Stadt', '< 60'], ['land', 'Land', '60–80'], ['bab', 'Autobahn', '> 80']].map((z, i) => `<div class="zr"><span>${ic(z[0], 17)}</span><i style="flex:1"><u style="width:${Math.round(zk[i] / zs * 100)}%;background:${ZCOL[i]}"></u></i><b>${nf(zk[i], 1)} km</b><small>${Math.round(zk[i] / zs * 100)} %</small></div>`).join('');
+  const tile = (i, l, v, u) => `<div class="t">${kh(i, l)}<b>${v}${u ? `<small> ${u}</small>` : ''}</b></div>`;
+  const zr = [['city', 'Stadt'], ['land', 'Land'], ['bab', 'Autobahn']].map((z, i) => `<div class="zr"><span>${ic(z[0], 17)}</span><i style="flex:1"><u style="width:${Math.round(zk[i] / zs * 100)}%;background:${ZCOL[i]}"></u></i><b>${nf(zk[i], 1)} km</b><small>${Math.round(zk[i] / zs * 100)} %</small></div>`).join('');
   const map = tripMap(t.route);
-  return `<div class="h">Fahrt</div>
-  <div class="chips"><span class="c md">${fmtDay(t.start)}</span><span class="c md">${fmtTime(t.start)} – ${fmtTime(t.end)}</span><span class="c ${t.commute ? 'on' : ''}">${t.commute ? 'Pendeln' : 'Freizeit'}</span></div>
-  <div class="g2">${tile(nf(t.km, 1) + '<small> km</small>', 'Strecke', 'big')}${tile(fmtDur(t.dur), 'Dauer', 'big')}</div>
-  <div class="g2" style="margin-top:10px">${tile(t.avg + '<small> km/h</small>', 'Ø gesamt', 'big y')}${tile(t.max + '<small> km/h</small>', 'Höchstes Tempo', 'big')}</div>
-  <div class="card" style="margin-top:10px"><div class="r"><span class="l">Tempo · Beschleunigung</span><span class="l y">Ø ${t.avg} km/h</span></div>${tripCurve(ser, t.avg, t.dur)}</div>
+  return `<div class="g2"><div class="t hero">${kh('navi', ftLabel(t) || fmtDay(t.start), (ftLabel(t) ? fmtDay(t.start) + ' · ' : '') + fmtTime(t.start) + ' – ' + fmtTime(t.end))}<div class="hv"><b>${nf(t.km, 1)}</b><small>km · ${fmtDur(t.dur)}</small></div><div class="info">${ic(t.commute ? 'work' : 'route', 13)} ${t.commute ? 'Pendeln' : 'Freizeit'}${t.temp != null ? ` · ${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(t.temp, 0)} °C ${w.t}` : ''}</div></div>
+  ${tile('speed', 'Ø Tempo', t.avg, 'km/h')}${tile('bolt', 'Höchstes Tempo', t.max, 'km/h')}</div>
+  <div class="sec">Verlauf</div><div class="card">${kh('speed', 'Tempo & Beschleunigung', 'Ø ' + t.avg + ' km/h')}${tripCurve(ser, t.avg, t.dur)}</div>
   ${map ? `<div class="sec">Route</div><div class="card mapc">${map}</div>` : ''}
   <div class="sec">Strecke nach Tempo</div><div class="card">${zr}</div>
   <div class="sec">Sonst noch</div>
-  <div class="g2">${tile(t.stop != null ? Math.round(t.stop / 60) + '<small> min</small>' : '–', 'Stillstand')}${tile(mvAvg + '<small> km/h</small>', 'Ø in Bewegung')}</div>
-  <div class="g2" style="margin-top:10px">${tile(t.temp != null ? nf(t.temp, 0) + '<small> °C</small>' : '–', w.t || 'Temperatur')}${tile('≈ ' + nf(t.km * cons / 100, 2) + '<small> l</small>', 'Verbrauch ≈')}</div>
-  ${t.aqi != null ? `<div class="g2" style="margin-top:10px">${tile(t.aqi, 'Luftqualität (AQI)')}${tile(nf(t.km / (t.dur / 3600), 0) + '<small> km/h</small>', 'Ø inkl. Stopps')}</div>` : ''}
-  <button class="ghost" style="margin-top:18px;font-size:11px;letter-spacing:.14em" data-a="deltrip" data-id="${t.id}">FAHRT LÖSCHEN</button>`;
+  <div class="g2">${tile('clock', 'Stillstand', t.stop != null ? Math.round(t.stop / 60) : '–', 'min')}${tile('speed', 'Ø in Bewegung', mvAvg, 'km/h')}${tile('drop', 'Verbrauch ≈', nf(t.km * cons / 100, 2), 'l')}${t.wind != null ? tile('wind', 'Wind · Böen ' + t.gust, t.wind, 'km/h') : tile('route', 'Ø inkl. Stopps', nf(t.km / (t.dur / 3600), 0), 'km/h')}</div>
+  <button class="ghost" style="margin-top:18px;font-size:11px;letter-spacing:.14em" data-a="deltrip" data-id="${t.id}">Fahrt löschen</button>`;
 }
 const LT = { tank: ['Tanken', 'fuel'], service: ['Service', 'wrench'], reifen: ['Reifendruck', 'tire'], notiz: ['Notiz', 'note'] };
 function viewLogbuch() {
@@ -727,66 +873,96 @@ function viewLogbuch() {
   const logs = db.logs.filter(l => lFilter === 'all' || l.type === lFilter).sort((a, b) => b.date.localeCompare(a.date) || (b.odo || 0) - (a.odo || 0));
   const chip = (k, l) => `<button class="c ${lFilter === k ? 'on' : ''}" data-a="lf" data-f="${k}">${l}</button>`;
   const ts = tankState();
-  return `<div class="chips">${chip('all', 'Alle')}${chip('tank', 'Tanken')}${chip('service', 'Service')}${chip('reifen', 'Reifen')}${chip('notiz', 'Notiz')}</div>
-  <div class="g2"><div class="t hero"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><span>€ / 100 km</span></div><div class="t"><b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km Ø</span></div><button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank"><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><span>Tank</span>${ts ? `<div class="tb"><u style="width:${Math.round(ts.frac * 100)}%"></u></div>` : ''}</button></div>
-  <div style="height:10px"></div>
+  return `  <div class="g2"><div class="t hero">${kh('fuel', 'Kosten')}<div class="hv"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><small>€ / 100 km</small></div></div><div class="t">${kh('drop', 'Verbrauch')}<b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km</span></div><button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 46) : ''}</div></button></div>
+  <div class="sec">Auswertung</div>
+  <div class="card">${kh('drop', 'Verbrauch', 'l / 100 km')}${lineChart(cons.map(c => c.l100), cons.map(c => fmtDate(c.date)), '')}</div>
+  <div class="card">${kh('fuel', 'Kosten pro Monat', '€')}${(() => { const v = [], l = [], n0 = new Date(); for (let i = 5; i >= 0; i--) { const d = new Date(n0.getFullYear(), n0.getMonth() - i, 1); l.push(MO[d.getMonth()].slice(0, 3)); v.push(db.logs.filter(x => x.eur && x.date && +x.date.slice(0, 4) === d.getFullYear() && +x.date.slice(5, 7) === d.getMonth() + 1).reduce((a, x) => a + x.eur, 0)); } return lineChart(v, l, ' €'); })()}</div>
+  <div class="sec">Einträge</div><div class="chips">${chip('all', 'Alle')}${chip('tank', 'Tanken')}${chip('service', 'Service')}${chip('reifen', 'Reifen')}${chip('notiz', 'Notiz')}</div>
   ${logs.length ? logs.map(l => {
     let d = '', right = '';
     if (l.type === 'tank') { d = `${nf(l.liters, 2)} l${l.full ? '' : ' · nicht voll'}`; right = l.eur ? nf(l.eur, 2) + ' €' : ''; if (l.eur && l.liters) d += ' · ' + nf(l.eur / l.liters, 3) + ' €/l'; }
     if (l.type === 'service') { d = esc(l.text); right = l.eur ? nf(l.eur, 2) + ' €' : ''; }
     if (l.type === 'reifen') d = `vorne ${nf(l.front, 1)} bar · hinten ${nf(l.rear, 1)} bar`;
     if (l.type === 'notiz') d = esc(l.text);
-    return `<div class="card"><div class="r"><div><b>${ic(LT[l.type][1], 16)} ${LT[l.type][0]}</b><span class="l">${fmtDate(l.date)}${l.odo ? ' · ' + nf(l.odo, 0) + ' km' : ''}</span></div><b class="y" style="font-size:22px">${right}</b></div><div style="margin-top:6px;font-size:14px;letter-spacing:.04em">${d}</div><div style="text-align:right"><button class="ghost" style="font-size:11px;letter-spacing:.14em" data-a="dellog" data-id="${l.id}">LÖSCHEN</button></div></div>`;
+    return `<div class="card">${kh(LT[l.type][1], LT[l.type][0], fmtDate(l.date) + (l.odo ? ' · ' + nf(l.odo, 0) + ' km' : ''))}<div class="r"><b style="font-size:22px">${right}</b></div><div style="margin-top:6px;font-size:14px;letter-spacing:.04em">${d}</div><div style="text-align:right"><button class="ghost" style="font-size:11px;letter-spacing:.14em" data-a="dellog" data-id="${l.id}">LÖSCHEN</button></div></div>`;
   }).join('') : '<p class="mu">Noch keine Einträge.</p>'}`;
 }
 function viewMehr() {
   const ms = monthSeries(), avgM = ms.filter(m => m.km).length ? Math.round(ms.reduce((a, m) => a + m.km, 0) / ms.filter(m => m.km).length) : 0;
-  const R = records(), rt = (i, v, u, l, hero) => `<div class="t rk${hero ? ' hero' : ''}">${ic(i, 18)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span>${l}</span><span class="d">${v ? v.d : ''}</span></div>`;
+  const R = records(), rt = (i, v, u, l, hero) => `<div class="t rk${hero ? ' hero' : ''}">${kh(i, l)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span class="d">${v ? v.d : ''}</span></div>`;
   const op = db.settings.odoPhoto;
-  return `<div class="sec" style="margin-top:0">Analyse</div>
-  <div class="card gr1"><div class="r"><span class="l">Kilometer pro Monat</span><b class="y">Ø ${avgM}</b></div>${monthChart(ms)}</div>
-  <div class="card gr2"><div class="r"><span class="l">Strecke pro Typ</span><span class="l" style="display:flex;gap:12px;margin:0">${['city', 'land', 'bab'].map((n, i) => `<span style="color:${ZCOL[i]}">${ic(n, 18)} ●</span>`).join('')}</span></div>${typeChart(ms)}</div>
+  const T = db.trips, d28 = Date.now() - 28 * 864e5, d56 = Date.now() - 56 * 864e5, inR = (t, a, b) => { const x = +new Date(t.start); return x >= a && x < b; };
+  const cmA = T.filter(t => t.commute && t.dur > 120 && inR(t, d28, Infinity)), cmB = T.filter(t => t.commute && t.dur > 120 && inR(t, d56, d28)), am = a => a.length ? Math.round(a.reduce((x, t) => x + t.dur, 0) / a.length / 60) : 0;
+  const kA = T.filter(t => inR(t, d28, Infinity)).reduce((a, t) => a + t.km, 0) / 4, kB = T.filter(t => inR(t, d56, d28)).reduce((a, t) => a + t.km, 0) / 4;
+  const vA = T.filter(t => inR(t, d28, Infinity) && t.avg), vB = T.filter(t => inR(t, d56, d28) && t.avg), av = a => a.length ? Math.round(a.reduce((x, t) => x + t.avg, 0) / a.length) : 0;
+  const cs = consumption(), cL = cs.length ? cs[cs.length - 1].l100 : 0, cP = cs.length > 1 ? cs[cs.length - 2].l100 : cL;
+  const temps = T.filter(t => t.temp != null && inR(t, d56, Infinity)).map(t => ({ x: (new Date(t.start) - d56) / 864e5, y: Math.round(t.temp), c: tcol(t.temp) }));
+  return `<div class="sec" style="margin-top:0">Trends</div><div class="g2">
+  ${trendTile('clock', 'Pendelzeit', am(cmA) ? am(cmA) + '<small> min</small>' : '–', cmB.length && cmA.length ? am(cmA) - am(cmB) : 0, am(cmA) <= am(cmB))}
+  ${trendTile('route', 'km / Woche', nf(kA, 0), kB ? Math.round(kA - kB) : 0, true)}
+  ${trendTile('drop', 'Verbrauch', cL ? nf(cL, 1) + '<small> l</small>' : '–', cs.length > 1 ? Math.round((cL - cP) * 10) / 10 : 0, cL <= cP)}
+  ${trendTile('speed', 'Ø Tempo', av(vA) ? av(vA) + '<small> km/h</small>' : '–', vB.length && vA.length ? av(vA) - av(vB) : 0, true)}</div>
+  <div class="sec">Analyse</div>
+  <div class="card">${kh('route', 'Kilometer pro Monat', 'Ø ' + avgM)}${monthChart(ms)}</div>
+  <div class="card">${kh('bab', 'Strecke pro Typ')}${typeChart(ms)}<div class="lg"><span><i style="background:${ZCOL[0]}"></i>Stadt</span><span><i style="background:${ZCOL[1]}"></i>Land</span><span><i style="background:${ZCOL[2]}"></i>Autobahn</span></div></div>
+  <div class="card">${kh('cloud', 'Temperatur', '8 Wochen')}${rangeChart(wkGroups(T, x => x.temp != null ? Math.round(x.temp) : null), temps.length ? temps.reduce((a, p) => a + p.y, 0) / temps.length : 0, '°C')}</div>
   <div class="sec">Rekorde</div>
   <div class="g2">${rt('clock', R.fast, 'min', 'Schnellste Pendelfahrt')}${rt('route', R.long, 'km', 'Längste Tour', 1)}${rt('speed', R.top, 'km/h', 'Höchstes Tempo')}${rt('cal', R.week, 'km', 'Beste Woche')}${rt('bolt', R.streak, 'Tage', 'Längste Serie')}${rt('fuel', R.cons, 'l/100', 'Bester Verbrauch')}</div>
   <div class="sec">Erinnerungen</div>
-  ${db.reminders.map(r => { const s = reminderStatus(r); return `<div class="card ${['', 'warn', 'danger'][s.level]}"><div class="r"><div><b>${esc(r.name)}</b><span class="l">${esc(s.text)}</span></div><span class="c ${['', 'w', 'e'][s.level]}">${s.level === 2 ? 'fällig' : s.level === 1 ? 'bald' : 'ok'}</span></div><div class="r" style="margin-top:10px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="sm pri" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`; }).join('')}
+  ${db.reminders.map(r => remCard(r, reminderStatus(r))).join('')}
   <button class="sm" data-a="newrem">+ Erinnerung</button>
   <div class="sec">Einstellungen</div>
   <div class="card">
-    <div class="r"><span class="l" style="margin:0">Kilometerstand</span><b>${nf(currentOdo(), 0)} km</b></div>
-    <div class="r" style="margin-top:8px"><span class="l" style="margin:0">Pendelstrecke</span><b>${nf(db.settings.pendelKm, 1)} km</b></div>
-    <div class="r" style="margin-top:8px"><span class="l" style="margin:0">Tank</span><b>${nf(db.settings.tank, 1)} l</b></div>
-    <div class="r" style="margin-top:8px"><span class="l" style="margin:0">Nadel im Tacho</span><b>${db.settings.needle ? 'an' : 'aus'}</b></div>
-    <div class="r" style="margin-top:8px"><span class="l" style="margin:0">Tankerkönig-Schlüssel</span><b>${db.settings.tkKey ? 'gesetzt' : '–'}</b></div>
+    <div class="srow"><span>Kilometerstand</span><em>${nf(currentOdo(), 0)} km</em></div><div class="srow"><span>Pendelstrecke</span><em>${nf(db.settings.pendelKm, 1)} km</em></div><div class="srow"><span>Tankgröße</span><em>${nf(db.settings.tank, 1)} l</em></div><div class="srow"><span>Nadel im Tacho</span><em>${db.settings.needle ? 'An' : 'Aus'}</em></div><div class="srow"><span>Tankerkönig-Schlüssel</span><em>${db.settings.tkKey ? 'Gesetzt' : '–'}</em></div>
     <div style="margin-top:12px;display:flex;gap:8px"><button class="sm" data-a="settings">Ändern</button><button class="sm" data-a="odophoto">${ic('speed', 13)} Tacho fotografieren</button></div>
     ${op ? `<div class="odoph"><img src="${op.img}" alt="Tacho"><span class="l">Abgleich ${fmtDate(op.t)} · ${nf(op.odo || 0, 0)} km</span></div>` : ''}
   </div>
   <input type="file" id="odoimg" accept="image/*" capture="environment" hidden>
-  <div class="g2"><button class="pill" data-a="setwork">${ic('navi', 14)} Arbeit ${db.settings.work ? '✓' : ''}<br><span class="l" style="margin-top:4px">hier speichern</span></button><button class="pill" data-a="sethome">${ic('navi', 14)} Zuhause ${db.settings.home ? '✓' : ''}<br><span class="l" style="margin-top:4px">hier speichern</span></button></div>
+  <div class="g2"><button class="pill" data-a="setwork">${ic('work', 15)} Arbeit hier ${db.settings.work ? '✓' : ''}</button><button class="pill" data-a="sethome">${ic('home', 15)} Zuhause hier ${db.settings.home ? '✓' : ''}</button></div>
   <div class="sec">Daten</div>
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 11 · 18.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 12 · 19.11.2026</p>`;
 }
 function dockHTML() {
   if (tab === 'fahrt') {
-    if (sub === 'finden') return `<button class="pill" style="background:#000" data-a="maps">In Karten öffnen</button><button class="cta" data-a="back">Zurück</button>`;
+    if (sub === 'finden') return `<button class="cta" data-a="back">Zurück</button>`;
     if (sub === 'tanken') return stations && stations.list && stations.list.length ? `<button class="cta" data-a="route" data-i="0">Route zu Station 1</button>` : `<button class="cta" data-a="back">Zurück</button>`;
-    return `<div class="navrow"><button class="pill" data-a="navwork">${ic('navi', 15)} Arbeit</button><button class="pill" data-a="navhome">${ic('navi', 15)} Zuhause</button></div><button class="cta" data-a="start">Fahrt starten</button>`;
+    return `<div class="navrow"><button class="pill" data-a="navwork">${ic('work', 16)} Arbeit</button><button class="pill" data-a="navhome">${ic('home', 16)} Zuhause</button></div><button class="cta" data-a="start">Fahrt starten</button>`;
   }
   if (tab === 'fahrten' && sub === 'trip') return `<button class="cta" data-a="back">Zurück</button>`;
   if (tab === 'fahrten') return `<button class="cta" data-a="manualtrip">+ Fahrt nachtragen</button>`;
   if (tab === 'logbuch') return `<button class="cta" data-a="chooser">+ Eintrag</button>`;
   return '';
 }
+const ORD = ['fahrt', 'fahrten', 'logbuch', 'mehr']; let sliding = false;
+function slideTo(nt, dir, back) {
+  const v = $('#view'), d = $('#dock'); if (sliding) return; sliding = true;
+  v.style.transition = 'transform .17s cubic-bezier(.4,0,1,1), opacity .17s'; v.style.transform = `translateX(${-dir * 55}%)`; v.style.opacity = '0'; d.style.transition = 'opacity .17s'; d.style.opacity = '0';
+  setTimeout(() => {
+    tab = nt; sub = null; render(); window.scrollTo(0, 0);
+    v.style.transition = 'none'; v.style.transform = `translateX(${dir * 45}%)`; v.offsetWidth;
+    v.style.transition = 'transform .28s cubic-bezier(.15,.85,.25,1), opacity .28s'; v.style.transform = ''; v.style.opacity = ''; d.style.opacity = '';
+    setTimeout(() => { sliding = false; }, 280);
+  }, 170);
+}
+/* Goldene Glaskapsel unter dem gewählten Tab, gleitet beim Wechsel */
+function moveInd() {
+  const nav = $('#tabs'), on = nav && nav.querySelector('button.on'); if (!on) return;
+  let ind = nav.querySelector('.ind'); if (!ind) { ind = document.createElement('i'); ind.className = 'ind'; nav.prepend(ind); }
+  ind.style.left = on.offsetLeft + 'px'; ind.style.width = on.offsetWidth + 'px';
+}
 function render() {
   const v = $('#view'), y = window.scrollY;
-  v.innerHTML = HDR + ({ fahrt: viewFahrt, fahrten: () => sub === 'trip' ? viewTrip() : viewFahrten(), logbuch: viewLogbuch, mehr: viewMehr })[tab]();
+  v.innerHTML = ({ fahrt: viewFahrt, fahrten: () => sub === 'trip' ? viewTrip() : viewFahrten(), logbuch: viewLogbuch, mehr: viewMehr })[tab]();
   if (tab === 'fahrten' && sub === 'trip') initTripMap();
+  /* Abschnitte gruppieren: Titel bleibt oben kleben, bis der nächste ihn hochschiebt */
+  [...v.querySelectorAll(':scope > .sec')].forEach(h => { const sc = document.createElement('section'); sc.className = 'grp'; h.before(sc); let n = h; const list = []; while (n && (n === h || !n.classList || !n.classList.contains('sec'))) { list.push(n); n = n.nextSibling; } list.forEach(x => sc.appendChild(x)); });
   $('#dock').innerHTML = dockHTML();
-  const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '210px' : '130px') : '90px';
+  const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '260px' : '190px') : '120px';
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  moveInd();
   if (tab === 'fahrt' && sub === 'finden') { finderStart(); finderUpdate(); } else finderStop();
   window.scrollTo(0, y);
 }
@@ -914,7 +1090,7 @@ function remForm(r, isNew) {
 function init() {
   load(); save();
   document.addEventListener('click', e => {
-    const t = e.target.closest('[data-t]'); if (t && t.closest('#tabs')) { tab = t.dataset.t; sub = null; render(); window.scrollTo(0, 0); return; }
+    const t = e.target.closest('[data-t]'); if (t && t.closest('#tabs')) { const a = ORD.indexOf(tab), b = ORD.indexOf(t.dataset.t); if (a === b && !sub) return; slideTo(t.dataset.t, b >= a ? 1 : -1); return; }
     if (e.target.dataset.x === 'cancel' || e.target.classList.contains('sheet-bg')) return closeSheet();
     const a = e.target.closest('[data-a]'); if (a && actions[a.dataset.a]) { if (a.dataset.a === 'start') hap(2); if (['tank', 'service', 'reifen', 'notiz'].includes(a.dataset.a)) closeSheet(); actions[a.dataset.a](a); }
   });
@@ -926,17 +1102,31 @@ function init() {
     rd.readAsText(e.target.files[0]);
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !rec) { fetchForecast(); render(); } });
+  $('#view').insertAdjacentHTML('beforebegin', '<div id="hdrbox">' + HDR + '</div>');
+  document.body.insertAdjacentHTML('beforeend', '<div id="topblur"></div>');
+  /* Hauptbutton wird beim Scrollen zu Glas */
+  const lg = $('#hdrbox img');
+  const onSc = () => { const y = window.scrollY; document.body.classList.toggle('scrolled', y > 8); document.body.classList.toggle('scr2', y > 30); if (lg) { lg.style.filter = `blur(${Math.min(10, y / 10).toFixed(1)}px)`; lg.style.opacity = Math.max(.25, 1 - y / 220).toFixed(2); } }; window.addEventListener('scroll', onSc, { passive: true }); window.addEventListener('resize', moveInd);
   const TI = { fahrt: 'speed', fahrten: 'route', logbuch: 'note' };
   document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', TI[b.dataset.t] ? ic(TI[b.dataset.t], 20) : '<svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'));
-  /* Wischen zwischen den Seiten (nur in der Mitte, nicht an den Rändern, nicht im Fahrmodus) */
-  const ORD = ['fahrt', 'fahrten', 'logbuch', 'mehr']; let sw = null;
-  document.addEventListener('touchstart', e => { const t = e.touches[0]; sw = (e.touches.length === 1 && !rec && $('#sheet').hidden && t.clientX > 28 && t.clientX < innerWidth - 28) ? { x: t.clientX, y: t.clientY, at: Date.now() } : null; }, { passive: true });
+  /* Wischen zwischen den Seiten: Inhalt folgt dem Finger (nur Mitte, nicht im Fahrmodus) */
+  let sw = null; const V = $('#view');
+  document.addEventListener('touchstart', e => { const t = e.touches[0]; sw = (e.touches.length === 1 && !rec && !sliding && $('#sheet').hidden && t.clientX > 28 && t.clientX < innerWidth - 28) ? { x: t.clientX, y: t.clientY, at: Date.now(), h: null } : null; }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!sw) return; const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+    if (sw.h === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) sw.h = Math.abs(dx) > Math.abs(dy) * 1.3;
+    if (!sw.h) return;
+    const i = ORD.indexOf(tab) + (dx < 0 ? 1 : -1), edge = !sub && (i < 0 || i >= ORD.length);
+    const x = edge ? dx * .25 : dx; V.style.transition = 'none'; V.style.transform = `translateX(${x}px)`; V.style.opacity = String(1 - Math.min(.5, Math.abs(x) / innerWidth));
+  }, { passive: true });
   document.addEventListener('touchend', e => {
-    if (!sw) return; const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y; const ok = Math.abs(dx) > 70 && Math.abs(dy) < 45 && Date.now() - sw.at < 700; sw = null;
-    if (!ok) return;
-    if (sub) { if (dx > 0) { sub = null; render(); } return; }
-    const i = ORD.indexOf(tab) + (dx < 0 ? 1 : -1); if (i < 0 || i >= ORD.length) return;
-    tab = ORD[i]; render(); window.scrollTo(0, 0);
+    if (!sw) return; const t = e.changedTouches[0], dx = t.clientX - sw.x, h = sw.h, fast = Date.now() - sw.at < 300; sw = null;
+    if (!h) return;
+    const go = Math.abs(dx) > innerWidth * .28 || (fast && Math.abs(dx) > 50);
+    if (go && sub && dx > 0) { slideTo(tab, -1, true); return; }
+    const i = ORD.indexOf(tab) + (dx < 0 ? 1 : -1);
+    if (go && !sub && i >= 0 && i < ORD.length) return slideTo(ORD[i], dx < 0 ? 1 : -1);
+    V.style.transition = 'transform .25s cubic-bezier(.2,.8,.2,1), opacity .25s'; V.style.transform = ''; V.style.opacity = '';
   }, { passive: true });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => { });
   render();

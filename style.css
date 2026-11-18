@@ -197,3 +197,230 @@ button.t{font:inherit;color:inherit;text-align:left;width:100%;display:block}
 #drive .rec.pause{color:var(--o)}#drive .rec.pause i{background:var(--o);box-shadow:0 0 10px var(--o);animation:none}
 #drive .eta{font-size:12px;letter-spacing:.08em;color:var(--y);font-weight:700;text-transform:uppercase}
 #drive{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+#hdrbox .hdr{margin:-24px -16px 16px}
+#view{will-change:transform}
+
+/* ===== Version 12: Gummi, Glas, Gold ===== */
+:root{--rub:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+/* Infokacheln: flach eingelassenes Gummi, ohne Kontur */
+.card,.t,#drive .tiles div,#drive .cv{background:var(--rub),#0e0f0f!important;border:0!important;box-shadow:inset 0 1px 3px rgba(0,0,0,.85),inset 0 -1px 0 rgba(255,255,255,.05)}
+.card.warn{box-shadow:inset 0 0 0 1.5px var(--o),inset 0 1px 3px rgba(0,0,0,.85)}.card.danger{box-shadow:inset 0 0 0 1.5px var(--r),inset 0 1px 3px rgba(0,0,0,.85)}
+.t.hero{border:0!important;position:relative;overflow:hidden}
+.t.hero::before{content:"";position:absolute;left:10px;right:10px;top:0;height:1.5px;background:linear-gradient(90deg,rgba(215,186,135,0),#f8e3b0 30%,#a88e60 65%,rgba(168,142,96,0));opacity:.95}
+body.heroB .t.hero::before{display:none}
+/* Nebenflächen: tiefer eingedrücktes Gummi */
+.pill,.c,.sm,.ib2,.navrow .pill,#drive .ib,#drive .c,.sheet-body button:not(.pri){background:var(--rub),#0b0c0c!important;border:0!important;box-shadow:inset 0 2px 5px rgba(0,0,0,.95),inset 0 -1px 0 rgba(255,255,255,.1),0 1px 0 rgba(255,255,255,.03);transition:box-shadow .12s,transform .12s}
+.pill:active,.c:active,.sm:active,.ib2:active{box-shadow:inset 0 3px 8px rgba(0,0,0,1),inset 0 -1px 0 rgba(255,255,255,.06);transform:translateY(.5px)}
+.c.on{color:#f3dca6!important;box-shadow:inset 0 2px 5px rgba(0,0,0,.95),inset 0 0 0 1px rgba(215,186,135,.55),0 0 10px rgba(201,169,107,.18)}
+.c.w{color:var(--o)!important}.c.e{color:var(--r)!important}.ib2.w{box-shadow:inset 0 0 0 1.5px var(--o),inset 0 2px 5px #000}.ib2.e{box-shadow:inset 0 0 0 1.5px var(--r),inset 0 2px 5px #000}
+#drive .ib.w{box-shadow:inset 0 0 0 1.5px var(--o)}#drive .ib.e{box-shadow:inset 0 0 0 1.5px var(--r)}
+/* Navigation: Glaskapsel, Auswahl als goldene Glaskapsel */
+#tabs{left:18px;right:18px;height:60px;border-radius:999px;padding:5px;gap:0;background:rgba(30,32,32,.5);-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);border:1px solid rgba(255,255,255,.13);box-shadow:0 10px 28px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.2)}
+#tabs button{border:0!important;border-radius:999px;color:#c7c7cc;position:relative;z-index:1;background:none}
+#tabs button.on{color:#fff}
+#tabs .ind{position:absolute;top:5px;bottom:5px;left:5px;width:80px;border-radius:999px;background:linear-gradient(180deg,rgba(248,227,176,.42),rgba(168,142,96,.26) 55%,rgba(120,96,56,.3));border:1px solid rgba(248,227,176,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -6px 12px rgba(0,0,0,.18),0 0 18px rgba(201,169,107,.3);transition:left .38s cubic-bezier(.2,.85,.25,1.05),width .38s;z-index:0}
+/* Hauptbutton: kleiner, Kapsel; beim Scrollen Glas */
+#dock{background:none!important;bottom:calc(88px + env(safe-area-inset-bottom));align-items:center}
+#dock .navrow{width:100%}
+.cta{height:42px;width:calc(100% - 56px);border-radius:999px;font-size:14px;letter-spacing:.12em;border:1px solid transparent;transition:background .35s,color .35s,box-shadow .35s,border-color .35s,-webkit-backdrop-filter .35s,backdrop-filter .35s}
+body.scrolled .cta{background:rgba(239,187,60,.28);color:#fff4d6;border-color:rgba(255,226,150,.55);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 8px 22px rgba(0,0,0,.45),0 0 18px rgba(239,187,60,.2)}
+/* Wichtig: lackiert in Vespa-Grün (Glanz, gewölbt) */
+.t.hero{background:
+ radial-gradient(120% 70% at 30% -10%,rgba(190,215,210,.22),rgba(190,215,210,0) 60%),
+ linear-gradient(172deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,.02) 38%,rgba(255,255,255,0) 39%),
+ linear-gradient(180deg,#22302e 0%,#16211f 40%,#0e1716 75%,#0a1110 100%)!important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(255,255,255,.06),inset 0 -14px 24px rgba(0,0,0,.35),0 6px 16px rgba(0,0,0,.45)!important}
+.t.hero::before{display:none}
+.t.hero::after{content:"";position:absolute;left:-10%;right:-10%;top:-40%;height:80%;background:radial-gradient(50% 50% at 50% 50%,rgba(255,255,255,.09),rgba(255,255,255,0) 70%);pointer-events:none}
+.t.hero span{color:#b7c4c1}
+.t.hero{background:linear-gradient(160deg,#25332f 0%,#16211f 55%,#0d1615 100%)!important;box-shadow:0 4px 12px rgba(0,0,0,.35)!important}
+.t.hero::after{display:none}
+/* Aktions-Karten (z. B. Daten sichern): Gold, flacher Verlauf */
+.card.act{background:linear-gradient(160deg,#e3c690 0%,#b8975e 55%,#8f7244 100%)!important;box-shadow:0 4px 12px rgba(0,0,0,.35)!important;color:#1a1408}
+.card.act b{color:#1a1408}.card.act .l{color:rgba(26,20,8,.72)}.card.act svg{stroke:#1a1408}
+/* Rund = tippen: alle Buttons als Kapsel */
+.pill,.c,.sm,.navrow .pill,.ib2,#drive .ib,#drive .c,.sheet-body button{border-radius:999px!important}
+.actb{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;height:44px;padding:0 18px;margin-bottom:10px;border-radius:999px;background:linear-gradient(160deg,#e3c690 0%,#b8975e 55%,#8f7244 100%);color:#1a1408;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.actb small{font-weight:600;letter-spacing:.06em;color:rgba(26,20,8,.7);font-size:12px}
+.actb svg{stroke:#1a1408;flex:none}
+.actb:active{transform:scale(.98)}
+.sm.pri{background:var(--y)!important;color:#000!important;box-shadow:0 2px 8px rgba(0,0,0,.35)!important}
+/* ===== Health-Basis: Überschriften, Kartenköpfe, Lampen, Grafiken ===== */
+.hdr{margin-bottom:22px!important;padding-bottom:4px}
+.hdr .st{display:none}
+.vst{position:absolute;top:0;right:14px;height:50vh;min-height:380px;display:flex;gap:2px;z-index:-1;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 25%,transparent 100%);mask-image:linear-gradient(180deg,#000 0%,#000 25%,transparent 100%)}
+.vst i{display:block;width:7px;background:var(--mus)}
+.vst u{display:block;width:3px;background:linear-gradient(180deg,#f8e3b0,#a88e60 40%,#d7ba87 70%,#897149)}
+.sec{font-size:21px!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important;color:#fff!important;margin:26px 2px 10px!important}
+.kh{display:flex;align-items:center;gap:7px;margin-bottom:8px;min-height:20px}
+.kh span{font-size:14px;font-weight:600;color:#fff;letter-spacing:0;text-transform:none}
+.kh em{margin-left:auto;font-style:normal;font-size:12px;color:#8e8e93;letter-spacing:.02em;text-transform:none}
+.t .kh span,.card .kh span{color:#fff!important;font-size:14px!important;letter-spacing:0!important}
+.rt{font-size:15px;color:#f2f2f2;letter-spacing:.01em}
+.card.btn .rt{display:block}
+.lamp{margin-left:auto;display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-style:normal}
+.lamp.off{background:#151616;color:#5a5a5e;box-shadow:inset 0 1px 3px rgba(0,0,0,.9)}
+.lamp.w{background:radial-gradient(120% 140% at 50% 30%,#ffb35c,#ff7a1a 60%,#c4520a);color:#2a1300;box-shadow:0 0 10px rgba(255,122,26,.75),0 0 22px rgba(255,122,26,.35),inset 0 1px 0 rgba(255,255,255,.45)}
+.lamp.e{background:radial-gradient(120% 140% at 50% 30%,#ff7a7a,#ff2d2d 60%,#b80d0d);color:#2a0000;box-shadow:0 0 12px rgba(255,45,45,.85),0 0 26px rgba(255,45,45,.4),inset 0 1px 0 rgba(255,255,255,.4)}
+.kh .lamp{margin-left:auto}
+.t.hero .hv{display:flex;align-items:baseline;gap:6px;margin:2px 0 4px}.t.hero .hv b{font-size:44px}.t.hero .hv small{font-size:15px;color:#b7c4c1}
+.t.hero .hx{top:44px}
+.t.hero .kh{position:relative;z-index:1}
+.tv{display:flex;align-items:center;justify-content:space-between;gap:6px}.tv b{display:block}
+.t.tk .tb{display:none}
+svg.ch{display:block;margin-top:6px}
+.hl p{font-size:15px;line-height:1.4;color:#e6e6e6;margin:2px 0 12px}.hl p b{color:#fff;font-weight:700;font-size:15px;letter-spacing:0}
+.cmp div{display:flex;align-items:center;gap:10px;margin-top:8px}.cmp i{display:block;height:22px;border-radius:6px}.cmp span{font-size:12px;color:#c7c7cc;white-space:nowrap}
+.lg{display:flex;gap:14px;margin-top:6px;font-size:11px;color:#a8a8ae}.lg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;margin-top:4px}
+.cal b{font-size:10px;color:#8e8e93;font-weight:600}
+.cal i{font-style:normal;font-size:12px;color:#8e8e93;height:30px;line-height:30px;border-radius:999px}
+.cal i.on{background:linear-gradient(160deg,#e3c690,#a88e60);color:#1a1408;font-weight:700}
+.cal i.td{box-shadow:inset 0 0 0 1.5px #efbb3c;color:#fff}.cal i.on.td{color:#1a1408}
+.cal i.fu{color:#3a3a3e}
+.t.trd b{font-size:26px}.t.trd b small{font-size:13px;color:#8e8e93}.t.trd>span{font-size:12px!important;letter-spacing:.02em!important;text-transform:none!important}
+.card.rem .rt{margin-top:2px}
+.card.wx{box-shadow:inset 0 1px 3px rgba(0,0,0,.85)!important}
+.hl p b{text-transform:none!important}
+.card .kh .lamp,.t .kh .lamp{font-size:10.5px!important;letter-spacing:.1em!important;text-transform:uppercase!important;font-weight:700}
+.card .kh .lamp.off{color:#5a5a5e!important}.card .kh .lamp.w{color:#2a1300!important}.card .kh .lamp.e{color:#2a0000!important}
+.cal i{width:30px;margin:0 auto}
+/* Streifen wie am Seitenteil: Gold, Gelb, Gelb – schräg, nur ganz oben */
+.vst{top:0;right:34px;height:210px;min-height:0;gap:0;transform:skewX(38deg);transform-origin:top right;-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 35%,transparent 100%);mask-image:linear-gradient(180deg,#000 0%,#000 35%,transparent 100%)}
+.vst u{width:4px;margin-right:1px;background:linear-gradient(180deg,#e9d3a4,#b39668)}
+.vst i{width:16px;background:var(--mus)}
+.vst i+i{margin-left:3px}
+.vst{right:150px;height:190px}
+.vst i{width:21px}.vst i+i{margin-left:4px}.vst u{width:5px;margin-right:1.5px}
+/* Streifen: nach rechts gekippt, unten gerade abgeschnitten wie am Seitenteil */
+.vst{right:auto;left:62%;height:118px;transform:skewX(-38deg);transform-origin:top left;-webkit-mask-image:none;mask-image:none}
+/* Hintergrund steht, Inhalt scrollt darüber */
+body::before{position:fixed}
+.vst{position:fixed}
+/* Sticky-Titel wie iOS */
+section.grp{position:relative}
+section.grp>.sec{position:sticky;top:0;z-index:15;margin:18px -16px 10px!important;padding:calc(env(safe-area-inset-top) + 10px) 18px 10px;background:rgba(0,0,0,.42);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
+/* Grün als minimal transparentes Glas */
+.t.hero{background:linear-gradient(160deg,rgba(40,56,52,.72) 0%,rgba(22,33,31,.66) 55%,rgba(13,22,21,.62) 100%)!important;-webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 16px rgba(0,0,0,.35)!important}
+/* Alle übrigen Flächen: dunkles Glas */
+.card,.t:not(.hero),#drive .tiles div,#drive .cv{background:rgba(18,20,20,.55)!important;-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.3)!important}
+.pill,.c,.sm:not(.pri),.navrow .pill,.ib2,#drive .ib,#drive .c,.sheet-body button:not(.pri){background:rgba(28,30,30,.55)!important;-webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 8px rgba(0,0,0,.3)!important}
+.c.on{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 0 0 1px rgba(215,186,135,.6)!important}
+/* ===== Runde 13 ===== */
+/* Streifen weiter rechts, kurz vor der Ecke */
+.vst{left:calc(100% - 92px)}
+/* Logo steht fest, Inhalt läuft darüber (Glas macht es unscharf) */
+#hdrbox{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top) + 24px) 16px 0;z-index:0;pointer-events:none}
+#hdrbox .hdr{margin:0!important;padding:0}
+#hdrbox img{transition:filter .1s linear,opacity .1s linear;will-change:filter,opacity}
+#view{position:relative;z-index:1;padding-top:66px}
+section.grp>.sec{background:rgba(0,0,0,.35)}
+/* Weicher Verlauf hinter Buttons und Navigation */
+body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(150px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.75) 45%,rgba(0,0,0,.92));z-index:19;pointer-events:none}
+/* Fahrmodus: Logo mit mehr Abstand nach unten */
+#drive .dlogo{bottom:calc(34px + env(safe-area-inset-bottom))}
+#drive{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+/* Bereichsgrafik */
+.rg span{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;color:#8e8e93;text-transform:uppercase}
+.rg b{font-size:28px;font-weight:500;letter-spacing:-.01em}.rg b small{font-size:14px;color:#8e8e93;font-weight:500}
+.zl{display:flex;gap:3px;height:8px;margin:10px 0 4px}.zl i{display:block;border-radius:4px}
+.cmp i{height:8px!important;border-radius:4px!important}
+/* ===== Runde 14 ===== */
+/* Oben: alles verschwimmt und wird etwas dunkler, sobald Inhalt darunter läuft */
+#topblur{position:fixed;left:0;right:0;top:0;height:calc(env(safe-area-inset-top) + 58px);z-index:14;pointer-events:none;-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.28));-webkit-mask-image:linear-gradient(180deg,#000 70%,transparent);mask-image:linear-gradient(180deg,#000 70%,transparent);opacity:0;transition:opacity .25s}
+body.scr2 #topblur{opacity:1}
+/* Titel ohne Hinterlegung, kleben oben in der Blur-Zone */
+section.grp>.sec{background:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;top:calc(env(safe-area-inset-top) + 10px);padding:0 2px!important;margin:26px 0 10px!important}
+/* Links in Kacheln gelb */
+.ghost{color:var(--y)!important}
+/* Fahrmodus: Anhalten als Warndreieck über dem Logo */
+#drive .endb{position:absolute!important;left:0;right:0;margin:0 auto;width:max-content;bottom:calc(88px + env(safe-area-inset-bottom));z-index:3;display:flex;flex-direction:column;align-items:center;gap:5px}
+#drive .endb small{font-size:9px;letter-spacing:.12em;color:#8e8e93;font-weight:700}
+#endBtn{width:60px;height:60px;border-radius:50%;background:rgba(28,30,30,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 4px 14px rgba(0,0,0,.4)}
+#endBtn svg:not(.haz){position:absolute;inset:0;width:60px;height:60px}
+#endBtn .haz{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-15px 0 0 -14px;filter:drop-shadow(0 0 6px rgba(255,45,45,.6))}
+#drive{padding-bottom:calc(168px + env(safe-area-inset-bottom))}
+#drive .foot{justify-content:flex-start}
+/* Glas: minimal hellere Kanten */
+.card,.t:not(.hero),#drive .tiles div,#drive .cv{box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 0 0 1px rgba(255,255,255,.07),0 4px 14px rgba(0,0,0,.3)!important}
+.t.hero{box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 0 0 1px rgba(200,230,222,.10),0 6px 16px rgba(0,0,0,.35)!important}
+.pill,.c,.sm:not(.pri),.navrow .pill,.ib2,#drive .ib,#drive .c,.sheet-body button:not(.pri),#endBtn{box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 0 0 1px rgba(255,255,255,.08),0 2px 8px rgba(0,0,0,.3)!important}
+#tabs{border-color:rgba(255,255,255,.18)!important;box-shadow:0 10px 28px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.26)!important}
+#drive .endb{bottom:calc(112px + env(safe-area-inset-bottom))}
+#drive{padding-bottom:calc(190px + env(safe-area-inset-bottom))}
+/* Trübes Glas: Kanten weich und unscharf statt Haarlinie */
+.card,.t:not(.hero),#drive .tiles div,#drive .cv{box-shadow:inset 0 1.5px 3px rgba(255,255,255,.14),inset 0 0 8px rgba(255,255,255,.06),0 4px 14px rgba(0,0,0,.3)!important}
+.t.hero{box-shadow:inset 0 1.5px 3px rgba(220,240,234,.18),inset 0 0 10px rgba(200,230,222,.08),0 6px 16px rgba(0,0,0,.35)!important}
+.pill,.c,.sm:not(.pri),.navrow .pill,.ib2,#drive .ib,#drive .c,.sheet-body button:not(.pri),#endBtn{box-shadow:inset 0 1.5px 3px rgba(255,255,255,.18),inset 0 0 7px rgba(255,255,255,.07),0 2px 8px rgba(0,0,0,.3)!important}
+#tabs{border-color:transparent!important;box-shadow:0 10px 28px rgba(0,0,0,.55),inset 0 1.5px 4px rgba(255,255,255,.2),inset 0 0 10px rgba(255,255,255,.07)!important}
+.c.on{box-shadow:inset 0 1.5px 3px rgba(255,255,255,.18),inset 0 0 8px rgba(215,186,135,.45)!important}
+/* Noch weicherer Übergang an den Glaskanten */
+.card,.t:not(.hero),#drive .tiles div,#drive .cv{box-shadow:inset 0 2px 7px rgba(255,255,255,.10),inset 0 0 16px rgba(255,255,255,.045),0 4px 14px rgba(0,0,0,.3)!important}
+.t.hero{box-shadow:inset 0 2px 8px rgba(220,240,234,.13),inset 0 0 18px rgba(200,230,222,.06),0 6px 16px rgba(0,0,0,.35)!important}
+.pill,.c,.sm:not(.pri),.navrow .pill,.ib2,#drive .ib,#drive .c,.sheet-body button:not(.pri),#endBtn{box-shadow:inset 0 2px 6px rgba(255,255,255,.13),inset 0 0 12px rgba(255,255,255,.05),0 2px 8px rgba(0,0,0,.3)!important}
+#tabs{box-shadow:0 10px 28px rgba(0,0,0,.55),inset 0 2px 8px rgba(255,255,255,.15),inset 0 0 16px rgba(255,255,255,.05)!important}
+.c.on{box-shadow:inset 0 2px 6px rgba(255,255,255,.12),inset 0 0 12px rgba(215,186,135,.4)!important}
+.ghost.lnk{font-size:11px;letter-spacing:.14em;font-weight:700;margin-left:auto}
+/* ===== Systematik ===== */
+.chev{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:24px;line-height:1;color:#6e6e73;font-weight:300}
+.card.btn,.card.tripc{position:relative;padding-right:34px}
+.info{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#a8a8ae;letter-spacing:.02em;margin-right:12px}
+.info svg{opacity:.8}
+#drive .chips .info{margin-right:10px}
+.tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--rg);font-weight:700}
+.dist .info{display:flex;justify-content:center;margin-top:4px}
+.t.hero.tk .tv .hv b{color:var(--rg)}.t.hero.tk.low .tv .hv b{color:var(--o)}
+/* Eingabe-Fenster im neuen Stil */
+.sheet-body{background:rgba(16,18,18,.82)!important;-webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%);border:0!important;border-radius:18px 18px 0 0!important;box-shadow:inset 0 2px 8px rgba(255,255,255,.08)}
+.sheet-body h1{font-size:24px!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important}
+.sheet-body label{font-size:12px!important;letter-spacing:.04em!important;text-transform:none!important;color:#a8a8ae!important;font-weight:600}
+.sheet-body input[type=text],.sheet-body input[type=number],.sheet-body input[type=date],.sheet-body textarea,.sheet-body input:not([type]){background:rgba(28,30,30,.6)!important;border:0!important;border-radius:12px!important;box-shadow:inset 0 2px 6px rgba(255,255,255,.07),inset 0 0 12px rgba(255,255,255,.03)}
+.sheet-body label.chk{text-transform:none!important;font-size:15px!important;color:#fff!important;letter-spacing:0!important}
+/* Roller finden wie AirTag */
+.pf{position:relative;border-radius:22px;padding:22px 16px 18px;text-align:center;background:rgba(18,20,20,.45);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:inset 0 2px 7px rgba(255,255,255,.1);transition:background .5s}
+.pf.on{background:linear-gradient(180deg,rgba(58,148,102,.85),rgba(30,90,60,.85))}
+.pfd b{font-size:64px;font-weight:600;letter-spacing:-.02em}.pfd small{font-size:24px;color:#c7c7cc;font-weight:500}
+.pfh{font-size:22px;font-weight:600;color:#d8d8d8;margin-top:-4px}
+.pfa{display:block;margin:6px auto 0}
+#fArrow{transition:transform .25s ease-out}
+.pfi{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:4px}.pfi .info b{color:#fff;font-weight:600}
+/* Einstellungen als iOS-Liste */
+.srow{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:16px;color:#fff}
+.srow:first-child{padding-top:2px}
+.srow em{font-style:normal;color:#a8a8ae}
+/* Buttons in normaler Schreibweise wie iOS */
+.pill,.sm,.c,.actb,.cta,.ghost,.ghost.lnk,.sheet-body button,#tabs button{text-transform:none!important;letter-spacing:.01em!important}
+.pill,.sm{font-size:15px!important;font-weight:600}.c{font-size:13px!important;font-weight:600}
+.actb{font-size:15px!important}.actb small{font-size:13px!important;letter-spacing:0!important}
+.cta{font-size:17px!important;font-weight:700}
+.ghost,.ghost.lnk{font-size:15px!important;font-weight:600}
+.sheet-body button{font-size:16px!important;font-weight:600}
+#tabs button{font-size:11px!important;font-weight:600}
+.sheet-body{background:rgba(22,24,24,.58)!important;-webkit-backdrop-filter:blur(30px) saturate(170%)!important;backdrop-filter:blur(30px) saturate(170%)!important;box-shadow:inset 0 2px 10px rgba(255,255,255,.1),0 -10px 30px rgba(0,0,0,.4)!important}
+.sheet-bg{background:rgba(0,0,0,.35)!important}
+.card.now .nw{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px}
+.card.now .nw b{display:block;font-size:26px;font-weight:500}.card.now .nw b small{font-size:13px;color:#8e8e93}
+.card.now .info{margin:2px 0 0}
+#drive .info.gw{color:var(--o)}#drive .info.gw svg{stroke:var(--o)}
+.pf.on{background:linear-gradient(180deg,rgba(28,78,54,.9),rgba(14,44,30,.9))!important}
+.ft{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;align-self:flex-start;margin-top:6px}
+/* Icons etwas größer */
+.kh svg{width:18px;height:18px}
+#tabs button svg{width:23px;height:23px}
+.pill svg,.navrow .pill svg{width:18px;height:18px}
+.actb svg{width:20px;height:20px}
+.info svg{width:15px;height:15px}
+.zr span svg{width:20px;height:20px}
+#drive .ib svg{width:24px;height:24px}
+/* Endpunkt an Linien */
+.cmp i,.zr u,.t.tk .tb u{position:relative;overflow:visible}
+.zr i,.zb,.zl,.t.tk .tb{overflow:visible!important}
+.cmp i::after,.zr u::after,.t.tk .tb u::after,.zb i:last-child::after,.zl i:last-child::after{content:"";position:absolute;right:-5px;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.6),0 0 6px rgba(255,255,255,.35)}
+.zb i:last-child,.zl i:last-child{position:relative}
+.zb{height:5px!important;border-radius:3px}
+.cmp i::after,.zr u::after,.t.tk .tb u::after,.zb i:last-child::after,.zl i:last-child::after{background:inherit!important;box-shadow:none!important;width:11px;height:11px;margin-top:-5.5px;right:-5.5px;-webkit-mask:radial-gradient(circle,transparent 2.6px,#000 3.2px);mask:radial-gradient(circle,transparent 2.6px,#000 3.2px)}
+.cmp i::before,.zr u::before,.t.tk .tb u::before,.zb i:last-child::before,.zl i:last-child::before{content:"";position:absolute;right:-2.5px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#0e1110;z-index:2}
+.cmp i::after,.zr u::after,.zb i:last-child::after,.zl i:last-child::after{z-index:1}
+/* Endpunkt kleiner */
+.cmp i::after,.zr u::after,.t.tk .tb u::after,.zb i:last-child::after,.zl i:last-child::after{width:8px!important;height:8px!important;margin-top:-4px!important;right:-4px!important;-webkit-mask:radial-gradient(circle,transparent 1.8px,#000 2.3px)!important;mask:radial-gradient(circle,transparent 1.8px,#000 2.3px)!important}
+.cmp i::before,.zr u::before,.t.tk .tb u::before,.zb i:last-child::before,.zl i:last-child::before{width:4px;height:4px;margin-top:-2px;right:-2px}
