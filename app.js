@@ -30,13 +30,13 @@ const IP = {
   navi: '<path d="M12 3l7 17-7-4-7 4z"/>',
   city: '<path d="M4 21V9l6-3v15M10 21V4l8 3v14M3 21h18M13 10h2M13 14h2M7 12h1M7 16h1"/>',
   land: '<path d="M12 3l5 8h-3l4 6H6l4-6H7zM12 17v4"/>',
-  bab: '<path d="M8 21l3-18M16 21l-3-18M12 5v2M12 11v3M12 18v2"/>',
+  bab: '<path d="M2.5 21L8.5 3M21.5 21L15.5 3M12 3.5v3.5M12 10v4M12 17v4"/>',
   wrench: '<path d="M14.5 6.5a4 4 0 0 0-5 5L3 18l3 3 6.5-6.5a4 4 0 0 0 5-5l-3 3-2-2z"/>',
   tire: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
   note: '<path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7"/>',
   wind: '<path d="M3 9h11a3 3 0 1 0-3-3M3 15h14a3 3 0 1 1-3 3"/>'
 };
-const ic = (n, s = 15) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IP[n]}</svg>`;
+const ic = (n, s = 15) => (s += 1,  `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IP[n]}</svg>`);
 
 /* ---------- Daten ---------- */
 function defaults() {
@@ -255,11 +255,11 @@ function dialSVG(hi) {
     const [x1, y1] = P(r1, ang), [x2, y2] = P(r2, ang);
     s += `<line id="tk${v}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${maj ? '#d8d8d8' : '#555'}" stroke-width="${maj ? 3.4 : mid ? 1.8 : 1}" opacity="0"/>`;
   }
-  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="DIN Condensed,DIN Alternate,Avenir Next Condensed,DejaVu Sans Condensed,sans-serif" opacity="0">${v}</text>`; }
+  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="Avenir Next,Helvetica Neue,DejaVu Sans,sans-serif" opacity="0">${v}</text>`; }
   s += `<circle cx="170" cy="170" r="58" fill="none" stroke="#2a2a2a" stroke-width="1.5"/>`;
   for (let i = 0; i <= 60; i++) { const a = 120 - i, [x1, y1] = P(116, a), [x2, y2] = P(124, a); s += `<line id="fu${i}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#2a2a2a" stroke-width="1.1"/>`; }
   [[0, '#e0242c'], [.5, '#ddd'], [1, '#ddd']].forEach(([f, c]) => { const a = 120 - 60 * f, [x1, y1] = P(112, a), [x2, y2] = P(128, a); s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="1.6"/>`; });
-  const ff = 'font-family="DIN Condensed,DIN Alternate,Avenir Next Condensed,DejaVu Sans Condensed,sans-serif"';
+  const ff = 'font-family="Avenir Next,Helvetica Neue,DejaVu Sans,sans-serif"';
   let [ex, ey] = P(96, 115), [fx, fy] = P(96, 65);
   s += `<text x="${ex.toFixed(0)}" y="${(ey + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>E</text><text x="${fx.toFixed(0)}" y="${(fy + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>F</text>`;
   s += `<text id="rng" x="170" y="240" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}></text>`;
@@ -455,8 +455,8 @@ function monthChart(ms) {
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ma" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2c14e" stop-opacity=".45"/><stop offset="1" stop-color="#f2c14e" stop-opacity="0"/></linearGradient></defs>`;
   [22, 52, 82].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
   s += `<path d="${bez(pts)} L${X(v.length - 1)} 100 L${X(0)} 100 Z" fill="url(#ma)"/><path d="${bez(pts)}" fill="none" stroke="#f2c14e" stroke-width="2.6"/>`;
-  v.forEach((x, i) => { const last = i === v.length - 1; s += `<circle cx="${X(i)}" cy="${Y(x).toFixed(1)}" r="${last ? 5 : 3.6}" fill="${last ? '#f2c14e' : '#000'}" stroke="#f2c14e" stroke-width="2"/><text x="${X(i)}" y="124" fill="${last ? '#fff' : '#8c8c8c'}" font-size="10" text-anchor="middle" letter-spacing="1">${ms[i].l}</text>`; });
-  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 10).toFixed(1)}" fill="#fff" font-size="13" text-anchor="middle">${v[v.length - 1]}</text></svg>`;
+  v.forEach((x, i) => { const last = i === v.length - 1; s += `<circle cx="${X(i)}" cy="${Y(x).toFixed(1)}" r="${last ? 5 : 3.6}" fill="${last ? '#f2c14e' : '#000'}" stroke="#f2c14e" stroke-width="2"/><text x="${X(i)}" y="124" fill="${last ? '#fff' : '#8c8c8c'}" font-size="11" text-anchor="middle" letter-spacing="1">${ms[i].l}</text>`; });
+  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 10).toFixed(1)}" fill="#fff" font-size="14" text-anchor="middle">${v[v.length - 1]}</text></svg>`;
 }
 function typeChart(ms) {
   const W = 326, H = 120, mx = Math.max(1, ...ms.flatMap(m => m.z));
@@ -464,9 +464,9 @@ function typeChart(ms) {
   [14, 44, 74].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
   [0, 1, 2].forEach(k => {
     const pts = ms.map((m, i) => [14 + (W - 44) * i / (ms.length - 1), 92 - 82 * m.z[k] / mx]);
-    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.6"/><circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="4.5" fill="${ZCOL[k]}"/><text x="${W - 6}" y="${(pts[pts.length - 1][1] + 4).toFixed(1)}" fill="${ZCOL[k]}" font-size="11" text-anchor="end">${Math.round(ms[ms.length - 1].z[k])}</text>`;
+    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.6"/><circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="4.5" fill="${ZCOL[k]}"/><text x="${W - 6}" y="${(pts[pts.length - 1][1] + 4).toFixed(1)}" fill="${ZCOL[k]}" font-size="12" text-anchor="end">${Math.round(ms[ms.length - 1].z[k])}</text>`;
   });
-  ms.forEach((m, i) => s += `<text x="${14 + (W - 44) * i / (ms.length - 1)}" y="114" fill="#8c8c8c" font-size="10" text-anchor="middle" letter-spacing="1">${m.l}</text>`);
+  ms.forEach((m, i) => s += `<text x="${14 + (W - 44) * i / (ms.length - 1)}" y="114" fill="#8c8c8c" font-size="11" text-anchor="middle" letter-spacing="1">${m.l}</text>`);
   return s + '</svg>';
 }
 
@@ -484,7 +484,6 @@ function viewFahrt() {
   if (due.length) h += `<div class="sec">Fällig</div>` + due.map(x => `<div class="card ${x.s.level === 2 ? 'danger' : 'warn'}"><b>${esc(x.r.name)}</b><span class="l">${esc(x.s.text)}</span></div>`).join('');
   if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden"><div class="r"><div><b>Roller finden</b><span class="l">geparkt ${fmtDay(pk.t)} · ${fmtTime(pk.t)}</span></div>${ic('pin', 22)}</div></button>`;
   h += `<div class="sec">Schnell eintragen</div><div class="g2"><button class="pill" data-a="tank">${ic('fuel', 14)} Tanken</button><button class="pill" data-a="reifen">Reifendruck</button></div>`;
-  if (!tankState()) h += `<p class="mu">Tipp: Trage eine volle Tankung mit Kilometerstand ein, dann schätzt die App den Tankstand.</p>`;
   return h;
 }
 /* Roller finden */
@@ -495,7 +494,7 @@ function viewFinden() {
   if (!pk) return h + `<p class="mu">Noch kein Standort gespeichert. Er wird beim Beenden einer Fahrt automatisch gemerkt – oder jetzt von Hand:</p><button class="pill" data-a="parknow">${ic('pin', 14)} Standort jetzt merken</button>`;
   let ticks = '';
   for (let a = 0; a < 360; a += 6) { const r2 = a % 30 === 0 ? 130 : 124, c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180); ticks += `<line x1="${(150 + 118 * c).toFixed(1)}" y1="${(150 + 118 * s).toFixed(1)}" x2="${(150 + r2 * c).toFixed(1)}" y2="${(150 + r2 * s).toFixed(1)}" stroke="${a % 30 === 0 ? '#d8d8d8' : '#555'}" stroke-width="${a % 30 === 0 ? 2.4 : 1}"/>`; }
-  h += `<div class="finder"><svg width="300" height="300" viewBox="0 0 300 300"><circle cx="150" cy="150" r="138" fill="#050505" stroke="#2e2e2e" stroke-width="3"/>${ticks}<text x="150" y="62" fill="#fff" font-size="15" text-anchor="middle">N</text><g id="fArrow" transform="rotate(0 150 150)"><path d="M150 52 L176 128 L150 112 L124 128 Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g></svg></div>
+  h += `<div class="finder"><svg width="300" height="300" viewBox="0 0 300 300"><circle cx="150" cy="150" r="138" fill="#050505" stroke="#2e2e2e" stroke-width="3"/>${ticks}<text x="150" y="62" fill="#fff" font-size="16" text-anchor="middle">N</text><g id="fArrow" transform="rotate(0 150 150)"><path d="M150 52 L176 128 L150 112 L124 128 Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g></svg></div>
   <div class="dist"><b id="fDist">–</b><small id="fUnit"> m</small><span class="l" id="fInfo">${ic('clock', 13)} Geparkt ${fmtTime(pk.t)} · ${fmtDay(pk.t)}</span></div>
   <div class="g2" style="margin-top:14px"><div class="t"><b id="fDir">–</b><span>Richtung</span></div><div class="t"><b id="fWalk">–</b><span>zu Fuß</span></div></div>
   <p class="mu" id="fHint">Der Pfeil zeigt relativ zu deiner Gehrichtung. Tipp „Kompass erlauben“, damit er auch im Stand stimmt.</p>
@@ -537,7 +536,7 @@ function viewFahrten() {
   const f = { all: () => true, commute: t => t.commute, free: t => !t.commute, cold: t => t.temp != null && t.temp <= 5 }[fFilter];
   const t = all.filter(f), chip = (k, l, c = 'on') => `<button class="c ${fFilter === k ? c : ''}" data-a="ff" data-f="${k}">${l}</button>`;
   return `<div class="h">Fahrten</div>
-  <div class="g2"><div class="t"><b>${all.length}</b><span>Fahrten</span></div><div class="t"><b>${nf(total, 0)}</b><span>km aufgezeichnet</span></div></div>
+  <div class="g2"><div class="t"><b>${all.length}</b><span>Fahrten</span></div><div class="t"><b>${nf(total, 0)}</b><span>km gefahren</span></div></div>
   <div class="chips" style="margin-top:12px">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
   ${t.length ? t.map(x => {
     const w = weatherInfo(x.code);
@@ -566,14 +565,14 @@ function viewLogbuch() {
 }
 function viewMehr() {
   const ms = monthSeries(), avgM = ms.filter(m => m.km).length ? Math.round(ms.reduce((a, m) => a + m.km, 0) / ms.filter(m => m.km).length) : 0;
-  const R = records(), rt = (i, v, u, l, d) => `<div class="t gt">${ic(i, 18)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span>${l}</span><span class="d">${v ? v.d : ''}</span></div>`;
+  const R = records(), rt = (i, v, u, l, d) => `<div class="t rk">${ic(i, 18)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span>${l}</span><span class="d">${v ? v.d : ''}</span></div>`;
   return `<div class="h">Mehr</div><div class="sec" style="margin-top:0">Analyse</div>
   <div class="card gr1"><div class="r"><span class="l">Kilometer pro Monat</span><b class="y">Ø ${avgM}</b></div>${monthChart(ms)}</div>
-  <div class="card gr2"><div class="r"><span class="l">Strecke pro Typ</span><span class="l" style="display:flex;gap:12px;margin:0">${['city', 'land', 'bab'].map((n, i) => `<span style="color:${ZCOL[i]}">${ic(n, 14)} ●</span>`).join('')}</span></div>${typeChart(ms)}</div>
+  <div class="card gr2"><div class="r"><span class="l">Strecke pro Typ</span><span class="l" style="display:flex;gap:12px;margin:0">${['city', 'land', 'bab'].map((n, i) => `<span style="color:${ZCOL[i]}">${ic(n, 18)} ●</span>`).join('')}</span></div>${typeChart(ms)}</div>
   <div class="sec">Rekorde</div>
   <div class="g2">${rt('clock', R.fast, 'min', 'Schnellste Pendelfahrt')}${rt('route', R.long, 'km', 'Längste Tour')}${rt('speed', R.top, 'km/h', 'Höchstes Tempo')}${rt('cal', R.week, 'km', 'Beste Woche')}${rt('bolt', R.streak, 'Tage', 'Längste Serie')}${rt('fuel', R.cons, 'l/100', 'Bester Verbrauch')}</div>
   <div class="sec">Erinnerungen</div>
-  ${db.reminders.map(r => { const s = reminderStatus(r); return `<div class="card"><div class="r"><div><b>${esc(r.name)}</b><span class="l">${esc(s.text)}</span></div><span class="c ${['', 'w', 'e'][s.level]}">${s.level === 2 ? 'fällig' : s.level === 1 ? 'bald' : 'ok'}</span></div><div class="r" style="margin-top:10px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="sm pri" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`; }).join('')}
+  ${db.reminders.map(r => { const s = reminderStatus(r); return `<div class="card ${['', 'warn', 'danger'][s.level]}"><div class="r"><div><b>${esc(r.name)}</b><span class="l">${esc(s.text)}</span></div><span class="c ${['', 'w', 'e'][s.level]}">${s.level === 2 ? 'fällig' : s.level === 1 ? 'bald' : 'ok'}</span></div><div class="r" style="margin-top:10px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="sm pri" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`; }).join('')}
   <button class="sm" data-a="newrem">+ Erinnerung</button>
   <div class="sec">Einstellungen</div>
   <div class="card">
@@ -604,7 +603,7 @@ function render() {
   const v = $('#view'), y = window.scrollY;
   v.innerHTML = ({ fahrt: viewFahrt, fahrten: viewFahrten, logbuch: viewLogbuch, mehr: viewMehr })[tab]();
   $('#dock').innerHTML = dockHTML();
-  const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '270px' : '170px') : '110px';
+  const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '210px' : '130px') : '90px';
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   if (tab === 'fahrt' && sub === 'finden') { finderStart(); finderUpdate(); } else finderStop();
   window.scrollTo(0, y);
