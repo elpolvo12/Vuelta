@@ -30,6 +30,7 @@ const IP = {
   navi: '<path d="M12 3l7 17-7-4-7 4z"/>',
   city: '<path d="M4 21V9l6-3v15M10 21V4l8 3v14M3 21h18M13 10h2M13 14h2M7 12h1M7 16h1"/>',
   land: '<path d="M12 3l5 8h-3l4 6H6l4-6H7zM12 17v4"/>',
+  oil: '<path d="M3 12h11v7H3zM14 14h3l4-4M6 12V9h6v3M20 15c.9 1.3 1.4 2 1.4 2.7a1.4 1.4 0 0 1-2.8 0c0-.7.5-1.4 1.4-2.7z"/>',
   bab: '<path d="M2.5 21L8.5 3M21.5 21L15.5 3M12 3.5v3.5M12 10v4M12 17v4"/>',
   wrench: '<path d="M14.5 6.5a4 4 0 0 0-5 5L3 18l3 3 6.5-6.5a4 4 0 0 0 5-5l-3 3-2-2z"/>',
   tire: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
@@ -255,11 +256,11 @@ function dialSVG(hi) {
     const [x1, y1] = P(r1, ang), [x2, y2] = P(r2, ang);
     s += `<line id="tk${v}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${maj ? '#d8d8d8' : '#555'}" stroke-width="${maj ? 3.4 : mid ? 1.8 : 1}" opacity="0"/>`;
   }
-  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="Avenir Next,Helvetica Neue,DejaVu Sans,sans-serif" opacity="0">${v}</text>`; }
+  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif" opacity="0">${v}</text>`; }
   s += `<circle cx="170" cy="170" r="58" fill="none" stroke="#2a2a2a" stroke-width="1.5"/>`;
   for (let i = 0; i <= 60; i++) { const a = 120 - i, [x1, y1] = P(116, a), [x2, y2] = P(124, a); s += `<line id="fu${i}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#2a2a2a" stroke-width="1.1"/>`; }
   [[0, '#e0242c'], [.5, '#ddd'], [1, '#ddd']].forEach(([f, c]) => { const a = 120 - 60 * f, [x1, y1] = P(112, a), [x2, y2] = P(128, a); s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="1.6"/>`; });
-  const ff = 'font-family="Avenir Next,Helvetica Neue,DejaVu Sans,sans-serif"';
+  const ff = 'font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif"';
   let [ex, ey] = P(96, 115), [fx, fy] = P(96, 65);
   s += `<text x="${ex.toFixed(0)}" y="${(ey + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>E</text><text x="${fx.toFixed(0)}" y="${(fy + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>F</text>`;
   s += `<text id="rng" x="170" y="240" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}></text>`;
@@ -305,23 +306,29 @@ function bez(pts) {
   return d;
 }
 function curveSVG(avg) {
-  const W = 350, H = 132, x0 = 4, x1 = 318, now = Date.now(), span = 1800000;
+  const W = 220, H = 64, x0 = 2, x1 = 216, now = Date.now(), span = 1800000;
   const h = rec.hist.filter(x => now - x.t <= span);
   const X = t => x1 - (now - t) / span * (x1 - x0);
-  const vmax = Math.max(60, ...h.map(x => x.v)), yv = v => 48 - 42 * v / vmax, ya = a => 92 - 20 * Math.max(-22, Math.min(22, a)) / 22;
+  const vmax = Math.max(60, ...h.map(x => x.v)), yv = v => 28 - 24 * v / vmax, ya = a => 48 - 11 * Math.max(-22, Math.min(22, a)) / 22;
   const grid = (a, b) => { let s = ''; for (let y = a; y < b; y += 6) s += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#1d1d1d"/>`; return s; };
-  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}">${grid(4, 48)}${grid(70, 114)}<line x1="${x0}" y1="48" x2="${x1}" y2="48" stroke="#444" stroke-width="1.5"/><line x1="${x0}" y1="92" x2="${x1}" y2="92" stroke="#555" stroke-width="1.2"/>`;
+  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}">${grid(4, 28)}${grid(38, 62)}<line x1="${x0}" y1="28" x2="${x1}" y2="28" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="48" x2="${x1}" y2="48" stroke="#555" stroke-width="1"/>`;
   const sp = h.map(x => [X(x.t), yv(x.v)]), ac = h.map((x, i) => [X(x.t), ya(i ? x.v - h[i - 1].v : 0)]);
   if (sp.length > 1) {
-    s += `<path d="${bez(sp)}" fill="none" stroke="#f2f2f2" stroke-width="2.6" stroke-linejoin="round"/>`;
-    s += `<defs><clipPath id="neg"><rect x="${x0}" y="92" width="${x1 - x0}" height="40"/></clipPath></defs><path d="${bez(ac)}" fill="none" stroke="#f2c14e" stroke-width="2.4"/><path d="${bez(ac)}" fill="none" stroke="#4fae80" stroke-width="3" clip-path="url(#neg)"/>`;
+    s += `<path d="${bez(sp)}" fill="none" stroke="#f2f2f2" stroke-width="2.2" stroke-linejoin="round"/>`;
+    s += `<defs><clipPath id="neg"><rect x="${x0}" y="48" width="${x1 - x0}" height="16"/></clipPath></defs><path d="${bez(ac)}" fill="none" stroke="#f2c14e" stroke-width="2"/><path d="${bez(ac)}" fill="none" stroke="#4fae80" stroke-width="2.4" clip-path="url(#neg)"/>`;
   }
-  if (avg != null) s += `<line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="#f2c14e" stroke-width="1.3" stroke-dasharray="4 5"/>`;
-  s += `<line x1="${x1}" y1="2" x2="${x1}" y2="118" stroke="#b3202a" stroke-width="1.5"/><text x="${x1 + 6}" y="46" fill="#8c8c8c" font-size="10">km/h</text><text x="${x1 + 6}" y="110" fill="#8c8c8c" font-size="9">Beschl</text><text x="${x0}" y="130" fill="#8c8c8c" font-size="10">0:30</text>`;
-  for (let i = 1; i < 6; i++) s += `<line x1="${x0 + (x1 - x0) * i / 6}" y1="119" x2="${x0 + (x1 - x0) * i / 6}" y2="124" stroke="#555"/>`;
-  return s + `<text x="${x1}" y="130" fill="#8c8c8c" font-size="10" text-anchor="end">0:00</text></svg>`;
+  if (avg != null) s += `<line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="#f2c14e" stroke-width="1.1" stroke-dasharray="4 4"/>`;
+  return s + `<line x1="${x1}" y1="1" x2="${x1}" y2="63" stroke="#b3202a" stroke-width="1.4"/></svg>`;
 }
 const commuteTime = () => { const d = new Date(), h = d.getHours(), wk = d.getDay() >= 1 && d.getDay() <= 5; return wk && ((h >= 5 && h < 10) || (h >= 15 && h < 20)); };
+function svcInfo(nm) {
+  const r = db.reminders.find(x => x.name.toLowerCase().startsWith(nm.toLowerCase().slice(0, 5))); if (!r) return null;
+  const s = reminderStatus(r), parts = [];
+  let lv = s.level;
+  if (r.everyKm) { const left = r.lastOdo + r.everyKm - currentOdo() - (rec ? liveKm() : 0); lv = Math.max(left < 0 ? 2 : left < 500 ? 1 : 0, 0); parts.push(left < 0 ? Math.round(-left) + ' km überfällig' : 'in ' + nf(Math.round(left), 0) + ' km'); }
+  const mo = s.text.split(' · ')[r.everyKm ? 1 : 0]; if (r.everyMonths && mo) { parts.push(mo); lv = Math.max(lv, s.level); }
+  return { level: lv, text: parts.join(' · ') || s.text };
+}
 function fitDrive() {
   const el = $('#drive'), s = $('#dsv'); if (!s) return;
   let w = Math.min(360, innerWidth - 24); s.style.width = w + 'px'; s.style.height = 'auto';
@@ -331,12 +338,14 @@ function mountDrive() {
   const el = $('#drive'); el.hidden = false; document.body.style.overflow = 'hidden';
   drv = { hi: 100, dv: 0, reach: -1, t0: performance.now(), introDone: false, last: null, sec: 0, hold: 0, faded: false, avgKm: 0 };
   el.innerHTML = `<div class="top"><div><b class="tm" id="dClock"></b><span id="dDate"></span></div><span class="rec"><i></i>AUFN.</span></div>
-  <div class="chips fade" id="dChips"></div>
+  <div class="chrow"><div class="chips fade" id="dChips"></div><span class="svc" id="dSvc"><button class="ib" data-sv="Ölwechsel"></button><button class="ib" data-sv="Inspektion"></button></span></div>
+  <div class="pop" id="dPop" hidden></div>
   <div class="dialbox" id="dBox"><img class="logo" id="dLogo" src="logo.png" alt=""></div>
-  <div class="odo fade"><b><i id="oA"></i><u id="oB"></u></b></div>
-  <div class="cv fade"><div class="ch"><span>TEMPO · LETZTE 30 MIN</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
-  <div class="tiles fade" id="dTiles"></div>
-  <div class="bot fade"><span class="c" id="dOil"></span><div class="endw"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><i></i></div><small>2 S HALTEN</small></div><span class="c" id="dAqi"></span></div>`;
+  <div class="foot fade"><b id="oA"></b><span class="c" id="dAqi"></span><div class="endw"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><i></i></div><small>2 S HALTEN</small></div></div>
+  <div class="mid"><div class="cv fade"><div class="ch"><span>TEMPO · 30 MIN</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
+  <div class="tiles fade" id="dTiles"></div></div>
+`;
+  $('#dSvc').addEventListener('click', e => { const b = e.target.closest('.ib'); if (!b) return; const nm = b.dataset.sv, pop = $('#dPop'); clearTimeout(drv.pt); if (drv.pop === nm) { drv.pop = null; pop.hidden = true; return; } drv.pop = nm; const inf = svcInfo(nm); pop.innerHTML = `<b>${nm}</b><span>${inf ? inf.text : ''}</span>`; pop.hidden = false; drv.pt = setTimeout(() => { drv.pop = null; pop.hidden = true; }, 6000); });
   buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
   const btn = $('#endBtn'), off = () => { drv.hold = 0; };
   btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drv.hold = performance.now(); });
@@ -397,7 +406,7 @@ function driveSecond(stale) {
   if (ice) chips += `<span class="c w">${ic('flake', 14)} Glatteisgefahr</span>`;
   if (G('dChips').innerHTML !== chips) G('dChips').innerHTML = chips;
   const odo = Math.floor(currentOdo() + liveKm()), os = nf(odo, 0);
-  G('oA').textContent = os.slice(0, -1); G('oB').textContent = os.slice(-1);
+  G('oA').textContent = os;
   G('dAvg').textContent = avg;
   G('dCv').innerHTML = curveSVG(rec.m > 0 ? avg : null);
   const h = rec.heading;
@@ -405,9 +414,7 @@ function driveSecond(stale) {
   const ts = tankState(liveKm()), col = !ts ? '#2a2a2a' : ts.frac > .5 ? '#4fae80' : ts.frac < .25 ? '#ff7a1a' : '#f2c14e';
   for (let i = 0; i <= 60; i++) { const e = G('fu' + i); if (e) e.setAttribute('stroke', ts && i / 60 <= ts.frac ? col : '#2a2a2a'); }
   const rg = G('rng'); if (rg) { rg.textContent = ts ? '≈ ' + Math.round(ts.range) + ' km' : 'TANK ?'; rg.setAttribute('fill', ts ? col : '#8c8c8c'); rg.setAttribute('opacity', drv.introDone ? 1 : ease((performance.now() - drv.t0) / 1000 - 5.0)); }
-  const rem = db.reminders.filter(r => r.everyKm).map(r => ({ r, left: r.lastOdo + r.everyKm - currentOdo() - liveKm() })).sort((a, b) => a.left - b.left)[0];
-  G('dOil').style.display = rem ? '' : 'none';
-  if (rem) G('dOil').textContent = (/öl/i.test(rem.r.name) ? 'ÖL' : rem.r.name.split(/[ /]/)[0]) + ' · ' + (rem.left < 0 ? 'fällig' : nf(Math.round(rem.left), 0) + ' km');
+  ['Ölwechsel', 'Inspektion'].forEach((nm, i) => { const bt = G('dSvc').children[i], inf = svcInfo(nm); bt.style.display = inf ? '' : 'none'; if (!inf) return; bt.className = 'ib' + (inf.level === 2 ? ' e' : inf.level === 1 ? ' w' : ''); if (!bt.firstChild) bt.innerHTML = ic(i ? 'wrench' : 'oil', 22); if (drv.pop === nm) G('dPop').innerHTML = `<b>${nm}</b><span>${inf.text}</span>`; });
   G('dAqi').style.display = rec.aqi != null ? '' : 'none';
   if (rec.aqi != null) G('dAqi').textContent = 'Luft ' + rec.aqi;
 }
@@ -488,7 +495,6 @@ function viewFahrt() {
   h += `<div class="g2"><div class="t"><b>${nf(odo, 0)}</b><span>km gesamt</span></div><div class="t"><b>${nf(weekKm(0), 0)}</b><span>km diese Woche</span></div></div>`;
   if (due.length) h += `<div class="sec">Fällig</div>` + due.map(x => `<div class="card ${x.s.level === 2 ? 'danger' : 'warn'}"><b>${esc(x.r.name)}</b><span class="l">${esc(x.s.text)}</span></div>`).join('');
   if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden"><div class="r"><div><b>Roller finden</b><span class="l">geparkt ${fmtDay(pk.t)} · ${fmtTime(pk.t)}</span></div>${ic('pin', 22)}</div></button>`;
-  h += `<div class="sec">Schnell eintragen</div><div class="g2"><button class="pill" data-a="tank">${ic('fuel', 14)} Tanken</button><button class="pill" data-a="reifen">Reifendruck</button></div>`;
   return h;
 }
 /* Roller finden */
@@ -593,7 +599,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichere sie regelmäßig – Safari kann Website-Daten löschen.</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 6 · 18.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 7 · 18.11.2026</p>`;
 }
 function dockHTML() {
   if (tab === 'fahrt') {
