@@ -483,7 +483,7 @@ function typeChart(ms) {
 }
 
 /* ---------- Views ---------- */
-let tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
+let dueSel = null, tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
@@ -493,7 +493,12 @@ function viewFahrt() {
   (fc ? fc.warns : []).forEach(w => h += `<div class="card warn"><b>${ic(w.icon, 16)} ${esc(w.t)}</b><span class="l">${esc(w.d)}</span></div>`);
   if (ts && ts.frac < .25) h += `<button class="card btn warn" data-a="opentank"><div class="r"><div><b>Tank ${Math.round(ts.frac * 100)} %</b><span class="l">≈ ${Math.round(ts.range)} km · ${nf(ts.liters, 1)} l</span></div>${ic('fuel', 22)}</div></button>`;
   h += `<div class="g2"><div class="t"><b>${nf(odo, 0)}</b><span>km gesamt</span></div><div class="t"><b>${nf(weekKm(0), 0)}</b><span>km diese Woche</span></div></div>`;
-  if (due.length) h += `<div class="sec">Fällig</div>` + due.map(x => `<div class="card ${x.s.level === 2 ? 'danger' : 'warn'}"><b>${esc(x.r.name)}</b><span class="l">${esc(x.s.text)}</span></div>`).join('');
+  if (due.length) {
+    const icn = n => /öl/i.test(n) ? 'oil' : /insp/i.test(n) ? 'wrench' : /hu|tüv/i.test(n) ? 'note' : /reif/i.test(n) ? 'tire' : /variator|riemen/i.test(n) ? 'bolt' : 'wrench';
+    const sel = due.find(x => x.r.id === dueSel);
+    h += `<div class="sec">Fällig</div><div class="dueRow">` + due.map(x => `<button class="ib2 ${x.s.level === 2 ? 'e' : 'w'} ${sel && sel.r.id === x.r.id ? 'on' : ''}" data-a="duesel" data-id="${x.r.id}" aria-label="${esc(x.r.name)}">${ic(icn(x.r.name), 24)}</button>`).join('') + `</div>`;
+    if (sel) h += `<div class="card ${sel.s.level === 2 ? 'danger' : 'warn'}"><b>${esc(sel.r.name)}</b><span class="l">${esc(sel.s.text)}</span><div class="r" style="margin-top:10px;gap:8px"><button class="sm" data-a="donerem" data-id="${sel.r.id}">Erledigt</button><button class="sm" data-a="editrem" data-id="${sel.r.id}">Bearbeiten</button></div></div>`;
+  }
   if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden"><div class="r"><div><b>Roller finden</b><span class="l">geparkt ${fmtDay(pk.t)} · ${fmtTime(pk.t)}</span></div>${ic('pin', 22)}</div></button>`;
   return h;
 }
@@ -599,7 +604,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichere sie regelmäßig – Safari kann Website-Daten löschen.</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 7 · 18.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 8 · 18.11.2026</p>`;
 }
 function dockHTML() {
   if (tab === 'fahrt') {
@@ -657,6 +662,7 @@ const actions = {
   start: startTrip, stop: stopTrip,
   finden() { sub = 'finden'; render(); },
   back() { sub = null; render(); },
+  duesel(el) { dueSel = dueSel === el.dataset.id ? null : el.dataset.id; render(); },
   parknow() { here(p => { db.settings.parked = { lat: p.lat, lon: p.lon, t: new Date().toISOString() }; save(); render(); toast('Standort gemerkt'); }); },
   compass() {
     if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') DeviceOrientationEvent.requestPermission().then(r => toast(r === 'granted' ? 'Kompass aktiv' : 'Kompass abgelehnt')).catch(() => toast('Kompass nicht verfügbar'));

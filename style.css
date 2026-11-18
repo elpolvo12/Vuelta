@@ -124,3 +124,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #drive .pop b{font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
 #drive .pop span{font-size:13px;color:var(--gr)}
 #drive .pop[hidden]{display:none}
+
+.dueRow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.ib2{width:60px;height:56px;border:2px solid #3a3a3a;border-radius:14px;background:#000;display:flex;align-items:center;justify-content:center}
+.ib2.w{border-color:var(--o)}.ib2.e{border-color:var(--r)}.ib2.on{background:#141414}
