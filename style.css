@@ -128,3 +128,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dueRow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .ib2{width:60px;height:56px;border:2px solid #3a3a3a;border-radius:14px;background:#000;display:flex;align-items:center;justify-content:center}
 .ib2.w{border-color:var(--o)}.ib2.e{border-color:var(--r)}.ib2.on{background:#141414}
+
+#holdOv{position:absolute;left:50%;top:38%;width:240px;height:240px;margin:-120px 0 0 -120px;opacity:0;pointer-events:none;transition:opacity .12s;z-index:6}
+
+.tripc{cursor:pointer}
+.mapc{padding:6px}
+.zr{display:flex;align-items:center;gap:10px;padding:7px 0}
+.zr i{height:6px;border-radius:3px;background:#1d1d1d;overflow:hidden;display:block}.zr u{display:block;height:100%}
+.zr b{font-weight:500;font-size:15px;min-width:64px;text-align:right}.zr small{font-size:11px;color:var(--gr);min-width:34px;text-align:right}
+.t b.y{color:var(--y)}

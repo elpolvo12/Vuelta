@@ -198,11 +198,12 @@ function onPos(p) {
   if (d < 5) { rec.speed = v < 4 ? 0 : v; return; }
   if (raw > 130) return;
   if (c.heading == null || isNaN(c.heading)) rec.heading = bearing(rec.last, pt);
+  if (!rec.lastRt || hav(rec.lastRt, pt) >= 15) { rec.route.push([+pt.lat.toFixed(5), +pt.lon.toFixed(5)]); rec.lastRt = pt; }
   rec.m += d; rec.zm[zoneOf(v)] += d; rec.speed = v; rec.max = Math.max(rec.max, v); rec.last = pt;
 }
 async function startTrip() {
   if (!navigator.geolocation) return toast('Kein GPS verfügbar');
-  rec = { start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null };
+  rec = { route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null };
   watchId = navigator.geolocation.watchPosition(onPos, e => toast('GPS: ' + (e.code === 1 ? 'Zugriff verweigert' : 'kein Signal')), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
   try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (e) { }
   document.addEventListener('visibilitychange', reWake);
@@ -227,7 +228,10 @@ function stopTrip() {
     const a = Math.floor(i * r.hist.length / B), b = Math.max(a + 1, Math.floor((i + 1) * r.hist.length / B));
     const s = r.hist.slice(a, b); sp.push(Math.round(s.reduce((x, y) => x + y.v, 0) / s.length));
   }
+  const ds = (a, n) => { if (a.length <= n) return a.slice(); const o = []; for (let i = 0; i < n; i++) { const x = Math.floor(i * a.length / n), y = Math.max(x + 1, Math.floor((i + 1) * a.length / n)); o.push(a.slice(x, y)); } return o; };
+  const ser = ds(r.hist.map(x => x.v), 120).map(x => Array.isArray(x) ? Math.round(x.reduce((a, b) => a + b, 0) / x.length) : x);
   const trip = {
+    ser, route: ds(r.route, 150).map(x => Array.isArray(x[0]) ? x[Math.floor(x.length / 2)] : x), stop: r.stop, aqi: r.aqi,
     id: uid(), start: r.start, end: end.toISOString(), km: Math.round(km * 100) / 100, dur: Math.round(dur),
     max: Math.round(r.max), avg: Math.round(km / (dur / 3600)), temp: r.weather ? r.weather.temp : null, code: r.weather ? r.weather.code : null,
     commute: km > pk * 0.6 && km < pk * 1.6, zk: r.zm.map(x => Math.round(x / 10) / 100), spark: sp
@@ -346,6 +350,7 @@ function mountDrive() {
   <div class="chrow"><div class="chips fade" id="dChips"></div><span class="svc" id="dSvc"><button class="ib" data-sv="Ölwechsel"></button><button class="ib" data-sv="Inspektion"></button></span></div>
   <div class="pop" id="dPop" hidden></div>
   <div class="dialbox" id="dBox"><img class="logo" id="dLogo" src="logo.png" alt=""></div>
+  <div id="holdOv"><svg viewBox="0 0 240 240" width="240" height="240"><circle cx="120" cy="120" r="100" fill="rgba(0,0,0,.82)" stroke="#2a2a2a" stroke-width="10"/><circle id="holdP" cx="120" cy="120" r="100" fill="none" stroke="#e0242c" stroke-width="10" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="628" transform="rotate(-90 120 120)"/><text x="120" y="112" text-anchor="middle" fill="#fff" font-size="44" font-family="-apple-system,Helvetica Neue,sans-serif" id="holdT">2,0 s</text><text x="120" y="146" text-anchor="middle" fill="#8c8c8c" font-size="15" letter-spacing="2" font-family="-apple-system,Helvetica Neue,sans-serif">FAHRT BEENDEN</text></svg></div>
   <div class="foot fade"><b id="oA"></b><span class="c" id="dAqi"></span><div class="endw"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><i></i></div><small>2 S HALTEN</small></div></div>
   <div class="mid"><div class="cv fade"><div class="ch"><span>TEMPO · 30 MIN</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
   <div class="tiles fade" id="dTiles"></div></div>
@@ -397,6 +402,7 @@ function driveFrame(ts) {
   const p = drv.hold ? Math.min(1, (performance.now() - drv.hold) / 2000) : 0;
   G('endP').setAttribute('stroke-dashoffset', 157 * (1 - p));
   $('#endBtn').style.transform = 'scale(' + (1 + .14 * p).toFixed(3) + ')';
+  const ov = G('holdOv'); ov.style.opacity = p > 0 ? 1 : 0; G('holdP').setAttribute('stroke-dashoffset', 628 * (1 - p)); G('holdT').textContent = p >= 1 ? 'ENDE' : (2 - 2 * p).toFixed(1).replace('.', ',') + ' s';
   const st = p >= 1 ? 4 : p >= .75 ? 3 : p >= .5 ? 2 : p >= .25 ? 1 : 0;
   if (drv.hold && st > (drv.hs || 0)) { drv.hs = st; if (st < 4) hap(st === 3 ? 2 : 1); }
   if (p >= 1) { drv.hold = 0; hap(3); stopTrip(); return; }
@@ -404,7 +410,7 @@ function driveFrame(ts) {
 }
 function driveSecond(stale) {
   const now = new Date(), sec = (now - new Date(rec.start)) / 1000;
-  if (now - (rec.lastSample || 0) >= 5000) { rec.lastSample = +now; rec.hist.push({ t: +now, v: Math.round(stale ? 0 : rec.speed) }); }
+  if (now - (rec.lastSample || 0) >= 5000) { rec.lastSample = +now; rec.hist.push({ t: +now, v: Math.round(stale ? 0 : rec.speed) }); if (stale || rec.speed < 3) rec.stop += 5; }
   const avg = rec.m > 0 ? Math.round(rec.m / sec * 3.6) : 0;
   G('dClock').textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   G('dDate').textContent = WD[now.getDay()] + ' ' + now.getDate() + '. ' + MO[now.getMonth()];
@@ -491,7 +497,7 @@ function typeChart(ms) {
 }
 
 /* ---------- Views ---------- */
-let dueSel = null, tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
+let tripSel = null, dueSel = null, tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
@@ -501,12 +507,14 @@ function viewFahrt() {
   (fc ? fc.warns : []).forEach(w => h += `<div class="card warn"><b>${ic(w.icon, 16)} ${esc(w.t)}</b><span class="l">${esc(w.d)}</span></div>`);
   if (ts && ts.frac < .25) h += `<button class="card btn warn" data-a="opentank"><div class="r"><div><b>Tank ${Math.round(ts.frac * 100)} %</b><span class="l">≈ ${Math.round(ts.range)} km · ${nf(ts.liters, 1)} l</span></div>${ic('fuel', 22)}</div></button>`;
   h += `<div class="g2"><div class="t"><b>${nf(odo, 0)}</b><span>km gesamt</span></div><div class="t"><b>${nf(weekKm(0), 0)}</b><span>km diese Woche</span></div></div>`;
+  const fuelTile = `<button class="ib2 ${ts && ts.frac < .25 ? 'w' : ''}" data-a="opentank" aria-label="Tanken">${ic('fuel', 24)}</button>`;
   if (due.length) {
     const icn = n => /öl/i.test(n) ? 'oil' : /insp/i.test(n) ? 'wrench' : /hu|tüv/i.test(n) ? 'note' : /reif/i.test(n) ? 'tire' : /variator|riemen/i.test(n) ? 'bolt' : 'wrench';
     const sel = due.find(x => x.r.id === dueSel);
-    h += `<div class="sec">Fällig</div><div class="dueRow">` + due.map(x => `<button class="ib2 ${x.s.level === 2 ? 'e' : 'w'} ${sel && sel.r.id === x.r.id ? 'on' : ''}" data-a="duesel" data-id="${x.r.id}" aria-label="${esc(x.r.name)}">${ic(icn(x.r.name), 24)}</button>`).join('') + `</div>`;
+    h += `<div class="sec">Tanken · Fällig</div><div class="dueRow">${fuelTile}` + due.map(x => `<button class="ib2 ${x.s.level === 2 ? 'e' : 'w'} ${sel && sel.r.id === x.r.id ? 'on' : ''}" data-a="duesel" data-id="${x.r.id}" aria-label="${esc(x.r.name)}">${ic(icn(x.r.name), 24)}</button>`).join('') + `</div>`;
     if (sel) h += `<div class="card ${sel.s.level === 2 ? 'danger' : 'warn'}"><b>${esc(sel.r.name)}</b><span class="l">${esc(sel.s.text)}</span><div class="r" style="margin-top:10px;gap:8px"><button class="sm" data-a="donerem" data-id="${sel.r.id}">Erledigt</button><button class="sm" data-a="editrem" data-id="${sel.r.id}">Bearbeiten</button></div></div>`;
   }
+  else h += `<div class="sec">Tanken</div><div class="dueRow">${fuelTile}</div>`;
   if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden"><div class="r"><div><b>Roller finden</b><span class="l">geparkt ${fmtDay(pk.t)} · ${fmtTime(pk.t)}</span></div>${ic('pin', 22)}</div></button>`;
   return h;
 }
@@ -564,14 +572,60 @@ function viewFahrten() {
   <div class="chips" style="margin-top:12px">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
   ${t.length ? t.map(x => {
     const w = weatherInfo(x.code);
-    return `<div class="card"><div class="r"><div><b class="big">${nf(x.km, 1)}<small> km</small></b><span class="l">${fmtDay(x.start)} · ${fmtTime(x.start)}</span></div>${spark(x.spark)}</div>
+    return `<div class="card tripc" data-a="opentrip" data-id="${x.id}"><div class="r"><div><b class="big">${nf(x.km, 1)}<small> km</small></b><span class="l">${fmtDay(x.start)} · ${fmtTime(x.start)}</span></div>${spark(x.spark)}</div>
     <div class="r2"><span>${Math.round(x.dur / 60)} min</span><span class="y">Ø ${x.avg}</span>${x.temp != null ? `<span>${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(x.temp, 0)}°C</span>` : ''}<span>${x.commute ? 'Pendeln' : 'Freizeit'}</span><button class="ghost" style="margin-left:auto;font-size:11px;letter-spacing:.14em" data-a="deltrip" data-id="${x.id}">LÖSCHEN</button></div>${x.zk ? zb(x.zk) : ''}</div>`;
   }).join('') : '<p class="mu">Keine Fahrten in dieser Ansicht.</p>'}`;
+}
+function tripMap(rt) {
+  const W = 326, H = 210, pad = 26;
+  if (!rt || rt.length < 2) return '';
+  const lon2x = (lo, z) => (lo + 180) / 360 * 256 * 2 ** z, lat2y = (la, z) => (1 - Math.log(Math.tan(la * Math.PI / 180) + 1 / Math.cos(la * Math.PI / 180)) / Math.PI) / 2 * 256 * 2 ** z;
+  const las = rt.map(x => x[0]), los = rt.map(x => x[1]), a = Math.min(...las), b = Math.max(...las), c = Math.min(...los), d = Math.max(...los);
+  let z = 17; for (; z > 3; z--) { if (lon2x(d, z) - lon2x(c, z) <= W - 2 * pad && lat2y(a, z) - lat2y(b, z) <= H - 2 * pad) break; }
+  const ox = (lon2x(c, z) + lon2x(d, z)) / 2 - W / 2, oy = (lat2y(a, z) + lat2y(b, z)) / 2 - H / 2;
+  let im = ''; for (let tx = Math.floor(ox / 256); tx <= Math.floor((ox + W) / 256); tx++) for (let ty = Math.floor(oy / 256); ty <= Math.floor((oy + H) / 256); ty++) im += `<image href="https://a.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}.png" x="${(tx * 256 - ox).toFixed(1)}" y="${(ty * 256 - oy).toFixed(1)}" width="256" height="256"/>`;
+  const pt = rt.map(x => [lon2x(x[1], z) - ox, lat2y(x[0], z) - oy]), s = pt[0], e = pt[pt.length - 1];
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border-radius:12px;background:#0b0b0b"><rect width="${W}" height="${H}" fill="#0b0b0b"/>${im}<path d="${bez(pt)}" fill="none" stroke="#000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/><path d="${bez(pt)}" fill="none" stroke="#f2c14e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${s[0]}" cy="${s[1]}" r="5.5" fill="#4fae80" stroke="#000" stroke-width="2"/><circle cx="${e[0]}" cy="${e[1]}" r="5.5" fill="#e0242c" stroke="#000" stroke-width="2"/><text x="${W - 6}" y="${H - 5}" text-anchor="end" font-size="8" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">© OpenStreetMap · © CARTO</text></svg>`;
+}
+function tripCurve(ser, avg, dur) {
+  const W = 326, H = 170, x0 = 6, x1 = 320, n = ser.length; if (n < 2) return '';
+  const vmax = Math.max(60, ...ser), X = i => x0 + i * (x1 - x0) / (n - 1), yv = v => 98 - 90 * v / vmax;
+  const ac = ser.map((v, i) => i ? v - ser[i - 1] : 0), amax = Math.max(8, ...ac.map(Math.abs)), ya = v => 140 - 22 * v / amax;
+  let g = ''; for (let y = 8; y <= 98; y += 15) g += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#1d1d1d"/>`; for (let y = 120; y <= 162; y += 11) g += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#1d1d1d"/>`;
+  const sp = ser.map((v, i) => [X(i), yv(v)]), as = ac.map((v, i) => [X(i), ya(v)]), mi = ser.indexOf(Math.max(...ser));
+  const lab = s => { const m = Math.round(s / 60); return m + ' min'; };
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs><clipPath id="tneg"><rect x="${x0}" y="140" width="${x1 - x0}" height="30"/></clipPath></defs>${g}<line x1="${x0}" y1="98" x2="${x1}" y2="98" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="140" x2="${x1}" y2="140" stroke="#555"/>
+  <path d="${bez(sp)}" fill="none" stroke="#f2f2f2" stroke-width="2.6" stroke-linejoin="round"/>
+  <line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="#f2c14e" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <circle cx="${X(mi).toFixed(1)}" cy="${yv(ser[mi]).toFixed(1)}" r="3.6" fill="#f2c14e"/>
+  <path d="${bez(as)}" fill="none" stroke="#f2c14e" stroke-width="2"/><path d="${bez(as)}" fill="none" stroke="#4fae80" stroke-width="2.4" clip-path="url(#tneg)"/>
+  <text x="${x0}" y="${H - 1}" font-size="9" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">0</text><text x="${x1}" y="${H - 1}" text-anchor="end" font-size="9" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">${lab(dur)}</text></svg>`;
+}
+function viewTrip() {
+  const t = db.trips.find(x => x.id === tripSel); if (!t) { sub = null; return viewFahrten(); }
+  const w = weatherInfo(t.code), ser = (t.ser && t.ser.length > 1) ? t.ser : (t.spark || []), zk = t.zk || [0, 0, 0], zs = (zk[0] + zk[1] + zk[2]) || 1;
+  const mvT = Math.max(60, t.dur - (t.stop || 0)), mvAvg = Math.round(t.km / (mvT / 3600)), cons = avgCons() || 3.1;
+  const tile = (v, l, c) => `<div class="t"><b${c ? ` class="${c}"` : ''}>${v}</b><span>${l}</span></div>`;
+  const zr = [['city', 'Stadt', '< 60'], ['land', 'Land', '60–80'], ['bab', 'Autobahn', '> 80']].map((z, i) => `<div class="zr"><span>${ic(z[0], 17)}</span><i style="flex:1"><u style="width:${Math.round(zk[i] / zs * 100)}%;background:${ZCOL[i]}"></u></i><b>${nf(zk[i], 1)} km</b><small>${Math.round(zk[i] / zs * 100)} %</small></div>`).join('');
+  const map = tripMap(t.route);
+  return `<div class="h">Fahrt</div>
+  <div class="chips"><span class="c md">${fmtDay(t.start)}</span><span class="c md">${fmtTime(t.start)} – ${fmtTime(t.end)}</span><span class="c ${t.commute ? 'on' : ''}">${t.commute ? 'Pendeln' : 'Freizeit'}</span></div>
+  <div class="g2">${tile(nf(t.km, 1) + '<small> km</small>', 'Strecke', 'big')}${tile(fmtDur(t.dur), 'Dauer', 'big')}</div>
+  <div class="g2" style="margin-top:10px">${tile(t.avg + '<small> km/h</small>', 'Ø gesamt', 'big y')}${tile(t.max + '<small> km/h</small>', 'Höchstes Tempo', 'big')}</div>
+  <div class="card" style="margin-top:10px"><div class="r"><span class="l">Tempo · Beschleunigung</span><span class="l y">Ø ${t.avg} km/h</span></div>${tripCurve(ser, t.avg, t.dur)}</div>
+  ${map ? `<div class="sec">Route</div><div class="card mapc">${map}</div>` : ''}
+  <div class="sec">Strecke nach Tempo</div><div class="card">${zr}</div>
+  <div class="sec">Sonst noch</div>
+  <div class="g2">${tile(t.stop != null ? Math.round(t.stop / 60) + '<small> min</small>' : '–', 'Stillstand')}${tile(mvAvg + '<small> km/h</small>', 'Ø in Bewegung')}</div>
+  <div class="g2" style="margin-top:10px">${tile(t.temp != null ? nf(t.temp, 0) + '<small> °C</small>' : '–', w.t || 'Temperatur')}${tile('≈ ' + nf(t.km * cons / 100, 2) + '<small> l</small>', 'Verbrauch ≈')}</div>
+  ${t.aqi != null ? `<div class="g2" style="margin-top:10px">${tile(t.aqi, 'Luftqualität (AQI)')}${tile(nf(t.km / (t.dur / 3600), 0) + '<small> km/h</small>', 'Ø inkl. Stopps')}</div>` : ''}
+  <button class="ghost" style="margin-top:18px;font-size:11px;letter-spacing:.14em" data-a="deltrip" data-id="${t.id}">FAHRT LÖSCHEN</button>`;
 }
 const LT = { tank: ['Tanken', 'fuel'], service: ['Service', 'wrench'], reifen: ['Reifendruck', 'tire'], notiz: ['Notiz', 'note'] };
 function viewLogbuch() {
   const cons = consumption(), avgC = cons.length ? cons.reduce((a, c) => a + c.l100, 0) / cons.length : null;
-  const spent = db.logs.reduce((a, l) => a + (l.eur || 0), 0), km = db.trips.reduce((a, t) => a + t.km, 0);
+  const tk = db.logs.filter(l => l.type === 'tank' && l.odo).sort((a, b) => a.odo - b.odo);
+  const km = tk.length > 1 ? tk[tk.length - 1].odo - tk[0].odo : 0, spent = tk.slice(1).reduce((a, l) => a + (l.eur || 0), 0);
   const logs = db.logs.filter(l => lFilter === 'all' || l.type === lFilter).sort((a, b) => b.date.localeCompare(a.date) || (b.odo || 0) - (a.odo || 0));
   const chip = (k, l) => `<button class="c ${lFilter === k ? 'on' : ''}" data-a="lf" data-f="${k}">${l}</button>`;
   return `<div class="h">Logbuch</div>
@@ -612,7 +666,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichere sie regelmäßig – Safari kann Website-Daten löschen.</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 9 · 18.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 10 · 18.11.2026</p>`;
 }
 function dockHTML() {
   if (tab === 'fahrt') {
@@ -620,13 +674,14 @@ function dockHTML() {
     if (sub === 'tanken') return stations && stations.list && stations.list.length ? `<button class="cta" data-a="route" data-i="0">Route zu Station 1</button>` : `<button class="cta" data-a="back">Zurück</button>`;
     return `<div class="navrow"><button class="pill" data-a="navwork">${ic('navi', 15)} Arbeit</button><button class="pill" data-a="navhome">${ic('navi', 15)} Zuhause</button></div><button class="cta" data-a="start">Fahrt starten</button>`;
   }
+  if (tab === 'fahrten' && sub === 'trip') return `<button class="cta" data-a="back">Zurück</button>`;
   if (tab === 'fahrten') return `<button class="cta" data-a="manualtrip">+ Fahrt nachtragen</button>`;
   if (tab === 'logbuch') return `<button class="cta" data-a="chooser">+ Eintrag</button>`;
   return '';
 }
 function render() {
   const v = $('#view'), y = window.scrollY;
-  v.innerHTML = ({ fahrt: viewFahrt, fahrten: viewFahrten, logbuch: viewLogbuch, mehr: viewMehr })[tab]();
+  v.innerHTML = ({ fahrt: viewFahrt, fahrten: () => sub === 'trip' ? viewTrip() : viewFahrten(), logbuch: viewLogbuch, mehr: viewMehr })[tab]();
   $('#dock').innerHTML = dockHTML();
   const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '210px' : '130px') : '90px';
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
@@ -670,6 +725,7 @@ const actions = {
   start: startTrip, stop: stopTrip,
   finden() { sub = 'finden'; render(); },
   back() { sub = null; render(); },
+  opentrip(el) { tripSel = el.dataset.id; sub = 'trip'; render(); window.scrollTo(0, 0); },
   duesel(el) { dueSel = dueSel === el.dataset.id ? null : el.dataset.id; render(); },
   parknow() { here(p => { db.settings.parked = { lat: p.lat, lon: p.lon, t: new Date().toISOString() }; save(); render(); toast('Standort gemerkt'); }); },
   compass() {
@@ -695,7 +751,7 @@ const actions = {
     o => { db.logs.push({ id: uid(), type: 'reifen', date: o.date || today(), front: o.front, rear: o.rear }); toast('Gespeichert'); }); },
   notiz() { openSheet('Notiz', [{ n: 'date', l: 'Datum', type: 'date', v: today() }, { n: 'text', l: 'Notiz', type: 'area' }], o => { if (o.text) db.logs.push({ id: uid(), type: 'notiz', date: o.date || today(), text: o.text }); }); },
   dellog(el) { if (confirm('Eintrag löschen?')) { db.logs = db.logs.filter(l => l.id !== el.dataset.id); save(); render(); } },
-  deltrip(el) { if (confirm('Fahrt löschen?')) { db.trips = db.trips.filter(l => l.id !== el.dataset.id); save(); render(); } },
+  deltrip(el) { if (confirm('Fahrt löschen?')) { db.trips = db.trips.filter(l => l.id !== el.dataset.id); sub = null; save(); render(); } },
   manualtrip() { openSheet('Fahrt nachtragen', [{ n: 'date', l: 'Datum', type: 'date', v: today() }, { n: 'km', l: 'Kilometer', type: 'number', v: db.settings.pendelKm }, { n: 'min', l: 'Dauer (Minuten)', type: 'number', v: 25 }],
     o => { if (!o.km) return; const s = new Date((o.date || today()) + 'T08:00:00'); const dur = (o.min || 20) * 60;
       db.trips.push({ id: uid(), start: s.toISOString(), end: new Date(+s + dur * 1000).toISOString(), km: o.km, dur, max: 0, avg: Math.round(o.km / (dur / 3600)), temp: null, code: null, commute: true });
