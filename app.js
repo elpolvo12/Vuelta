@@ -36,7 +36,7 @@ const IP = {
   note: '<path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7"/>',
   wind: '<path d="M3 9h11a3 3 0 1 0-3-3M3 15h14a3 3 0 1 1-3 3"/>'
 };
-const ic = (n, s = 15) => (s += 1,  `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IP[n]}</svg>`);
+const ic = (n, s = 15) => (s -= 1,  `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IP[n]}</svg>`);
 
 /* ---------- Daten ---------- */
 function defaults() {
@@ -240,7 +240,7 @@ const P = (r, deg) => { const a = deg * Math.PI / 180; return [170 + r * Math.co
 const arcd = (r, d1, d2) => { const [x1, y1] = P(r, d1), [x2, y2] = P(r, d2); return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${Math.abs(d2 - d1) > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`; };
 const ease = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
 function dialSVG(hi) {
-  let s = `<svg id="dsv" width="330" height="303" viewBox="-10 -10 360 330"><defs>
+  let s = `<svg id="dsv" viewBox="-10 -10 360 330"><defs>
   <linearGradient id="bz" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a5c60"/><stop offset=".18" stop-color="#2a2b2e"/><stop offset=".4" stop-color="#101113"/><stop offset=".62" stop-color="#3a3b3f"/><stop offset=".8" stop-color="#141517"/><stop offset="1" stop-color="#4a4b4f"/></linearGradient>
   <linearGradient id="bz2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050505"/><stop offset=".5" stop-color="#1b1c1e"/><stop offset="1" stop-color="#060606"/></linearGradient>
   <filter id="gl" filterUnits="userSpaceOnUse" x="-10" y="-10" width="360" height="330"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
@@ -322,6 +322,11 @@ function curveSVG(avg) {
   return s + `<text x="${x1}" y="130" fill="#8c8c8c" font-size="10" text-anchor="end">0:00</text></svg>`;
 }
 const commuteTime = () => { const d = new Date(), h = d.getHours(), wk = d.getDay() >= 1 && d.getDay() <= 5; return wk && ((h >= 5 && h < 10) || (h >= 15 && h < 20)); };
+function fitDrive() {
+  const el = $('#drive'), s = $('#dsv'); if (!s) return;
+  let w = Math.min(360, innerWidth - 24); s.style.width = w + 'px'; s.style.height = 'auto';
+  for (let i = 0; i < 12 && el.scrollHeight > el.clientHeight + 1 && w > 220; i++) { w -= Math.max(6, Math.ceil((el.scrollHeight - el.clientHeight) * 1.05)); s.style.width = w + 'px'; }
+}
 function mountDrive() {
   const el = $('#drive'); el.hidden = false; document.body.style.overflow = 'hidden';
   drv = { hi: 100, dv: 0, reach: -1, t0: performance.now(), introDone: false, last: null, sec: 0, hold: 0, faded: false, avgKm: 0 };
@@ -332,7 +337,7 @@ function mountDrive() {
   <div class="cv fade"><div class="ch"><span>TEMPO · LETZTE 30 MIN</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
   <div class="tiles fade" id="dTiles"></div>
   <div class="bot fade"><span class="c" id="dOil"></span><div class="endw"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><i></i></div><small>2 S HALTEN</small></div><span class="c" id="dAqi"></span></div>`;
-  buildDial();
+  buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
   const btn = $('#endBtn'), off = () => { drv.hold = 0; };
   btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drv.hold = performance.now(); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => btn.addEventListener(n, off));
@@ -455,8 +460,8 @@ function monthChart(ms) {
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ma" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2c14e" stop-opacity=".45"/><stop offset="1" stop-color="#f2c14e" stop-opacity="0"/></linearGradient></defs>`;
   [22, 52, 82].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
   s += `<path d="${bez(pts)} L${X(v.length - 1)} 100 L${X(0)} 100 Z" fill="url(#ma)"/><path d="${bez(pts)}" fill="none" stroke="#f2c14e" stroke-width="2.6"/>`;
-  v.forEach((x, i) => { const last = i === v.length - 1; s += `<circle cx="${X(i)}" cy="${Y(x).toFixed(1)}" r="${last ? 5 : 3.6}" fill="${last ? '#f2c14e' : '#000'}" stroke="#f2c14e" stroke-width="2"/><text x="${X(i)}" y="124" fill="${last ? '#fff' : '#8c8c8c'}" font-size="11" text-anchor="middle" letter-spacing="1">${ms[i].l}</text>`; });
-  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 10).toFixed(1)}" fill="#fff" font-size="14" text-anchor="middle">${v[v.length - 1]}</text></svg>`;
+  v.forEach((x, i) => { const last = i === v.length - 1; s += `<circle cx="${X(i)}" cy="${Y(x).toFixed(1)}" r="${last ? 5 : 3.6}" fill="${last ? '#f2c14e' : '#000'}" stroke="#f2c14e" stroke-width="2"/><text x="${X(i)}" y="124" fill="${last ? '#fff' : '#8c8c8c'}" font-size="10" text-anchor="middle" letter-spacing="1">${ms[i].l}</text>`; });
+  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 10).toFixed(1)}" fill="#fff" font-size="13" text-anchor="middle">${v[v.length - 1]}</text></svg>`;
 }
 function typeChart(ms) {
   const W = 326, H = 120, mx = Math.max(1, ...ms.flatMap(m => m.z));
@@ -464,9 +469,9 @@ function typeChart(ms) {
   [14, 44, 74].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
   [0, 1, 2].forEach(k => {
     const pts = ms.map((m, i) => [14 + (W - 44) * i / (ms.length - 1), 92 - 82 * m.z[k] / mx]);
-    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.6"/><circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="4.5" fill="${ZCOL[k]}"/><text x="${W - 6}" y="${(pts[pts.length - 1][1] + 4).toFixed(1)}" fill="${ZCOL[k]}" font-size="12" text-anchor="end">${Math.round(ms[ms.length - 1].z[k])}</text>`;
+    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.6"/><circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="4.5" fill="${ZCOL[k]}"/><text x="${W - 6}" y="${(pts[pts.length - 1][1] + 4).toFixed(1)}" fill="${ZCOL[k]}" font-size="11" text-anchor="end">${Math.round(ms[ms.length - 1].z[k])}</text>`;
   });
-  ms.forEach((m, i) => s += `<text x="${14 + (W - 44) * i / (ms.length - 1)}" y="114" fill="#8c8c8c" font-size="11" text-anchor="middle" letter-spacing="1">${m.l}</text>`);
+  ms.forEach((m, i) => s += `<text x="${14 + (W - 44) * i / (ms.length - 1)}" y="114" fill="#8c8c8c" font-size="10" text-anchor="middle" letter-spacing="1">${m.l}</text>`);
   return s + '</svg>';
 }
 
@@ -494,7 +499,7 @@ function viewFinden() {
   if (!pk) return h + `<p class="mu">Noch kein Standort gespeichert. Er wird beim Beenden einer Fahrt automatisch gemerkt – oder jetzt von Hand:</p><button class="pill" data-a="parknow">${ic('pin', 14)} Standort jetzt merken</button>`;
   let ticks = '';
   for (let a = 0; a < 360; a += 6) { const r2 = a % 30 === 0 ? 130 : 124, c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180); ticks += `<line x1="${(150 + 118 * c).toFixed(1)}" y1="${(150 + 118 * s).toFixed(1)}" x2="${(150 + r2 * c).toFixed(1)}" y2="${(150 + r2 * s).toFixed(1)}" stroke="${a % 30 === 0 ? '#d8d8d8' : '#555'}" stroke-width="${a % 30 === 0 ? 2.4 : 1}"/>`; }
-  h += `<div class="finder"><svg width="300" height="300" viewBox="0 0 300 300"><circle cx="150" cy="150" r="138" fill="#050505" stroke="#2e2e2e" stroke-width="3"/>${ticks}<text x="150" y="62" fill="#fff" font-size="16" text-anchor="middle">N</text><g id="fArrow" transform="rotate(0 150 150)"><path d="M150 52 L176 128 L150 112 L124 128 Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g></svg></div>
+  h += `<div class="finder"><svg width="300" height="300" viewBox="0 0 300 300"><circle cx="150" cy="150" r="138" fill="#050505" stroke="#2e2e2e" stroke-width="3"/>${ticks}<text x="150" y="62" fill="#fff" font-size="15" text-anchor="middle">N</text><g id="fArrow" transform="rotate(0 150 150)"><path d="M150 52 L176 128 L150 112 L124 128 Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g></svg></div>
   <div class="dist"><b id="fDist">–</b><small id="fUnit"> m</small><span class="l" id="fInfo">${ic('clock', 13)} Geparkt ${fmtTime(pk.t)} · ${fmtDay(pk.t)}</span></div>
   <div class="g2" style="margin-top:14px"><div class="t"><b id="fDir">–</b><span>Richtung</span></div><div class="t"><b id="fWalk">–</b><span>zu Fuß</span></div></div>
   <p class="mu" id="fHint">Der Pfeil zeigt relativ zu deiner Gehrichtung. Tipp „Kompass erlauben“, damit er auch im Stand stimmt.</p>
