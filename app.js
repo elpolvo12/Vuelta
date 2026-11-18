@@ -329,6 +329,11 @@ function svcInfo(nm) {
   const mo = s.text.split(' · ')[r.everyKm ? 1 : 0]; if (r.everyMonths && mo) { parts.push(mo); lv = Math.max(lv, s.level); }
   return { level: lv, text: parts.join(' · ') || s.text };
 }
+/* Haptik: Android per vibrate, iOS (Safari ab 17.4) per Schalter-Trick */
+function hap(n = 1) {
+  try { if (navigator.vibrate) navigator.vibrate(n === 1 ? 14 : n === 2 ? [24, 50, 24] : [40, 60, 40, 60, 70]); } catch (e) { }
+  try { let l = document.getElementById('hapL'); if (!l) { l = document.createElement('label'); l.id = 'hapL'; l.style.cssText = 'position:fixed;left:-50px;top:-50px;width:1px;height:1px;opacity:0;pointer-events:none'; l.innerHTML = '<input type="checkbox" switch>'; document.body.appendChild(l); } for (let i = 0; i < n; i++) setTimeout(() => l.click(), i * 70); } catch (e) { }
+}
 function fitDrive() {
   const el = $('#drive'), s = $('#dsv'); if (!s) return;
   let w = Math.min(360, innerWidth - 24); s.style.width = w + 'px'; s.style.height = 'auto';
@@ -347,8 +352,8 @@ function mountDrive() {
 `;
   $('#dSvc').addEventListener('click', e => { const b = e.target.closest('.ib'); if (!b) return; const nm = b.dataset.sv, pop = $('#dPop'); clearTimeout(drv.pt); if (drv.pop === nm) { drv.pop = null; pop.hidden = true; return; } drv.pop = nm; const inf = svcInfo(nm); pop.innerHTML = `<b>${nm}</b><span>${inf ? inf.text : ''}</span>`; pop.hidden = false; drv.pt = setTimeout(() => { drv.pop = null; pop.hidden = true; }, 6000); });
   buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
-  const btn = $('#endBtn'), off = () => { drv.hold = 0; };
-  btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drv.hold = performance.now(); });
+  const btn = $('#endBtn'), off = () => { if (drv.hold) { drv.hold = 0; drv.hs = 0; $('#endBtn').style.transform = ''; } };
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drv.hold = performance.now(); drv.hs = 0; hap(1); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => btn.addEventListener(n, off));
   el.addEventListener('pointerdown', () => { if (!drv.introDone) drv.t0 -= 10000; });
   drv.raf = requestAnimationFrame(driveFrame);
@@ -391,7 +396,10 @@ function driveFrame(ts) {
   /* 2 s halten zum Beenden */
   const p = drv.hold ? Math.min(1, (performance.now() - drv.hold) / 2000) : 0;
   G('endP').setAttribute('stroke-dashoffset', 157 * (1 - p));
-  if (p >= 1) { drv.hold = 0; stopTrip(); return; }
+  $('#endBtn').style.transform = 'scale(' + (1 + .14 * p).toFixed(3) + ')';
+  const st = p >= 1 ? 4 : p >= .75 ? 3 : p >= .5 ? 2 : p >= .25 ? 1 : 0;
+  if (drv.hold && st > (drv.hs || 0)) { drv.hs = st; if (st < 4) hap(st === 3 ? 2 : 1); }
+  if (p >= 1) { drv.hold = 0; hap(3); stopTrip(); return; }
   if (ts - drv.sec >= 1000) { drv.sec = ts; driveSecond(stale); }
 }
 function driveSecond(stale) {
@@ -604,7 +612,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichere sie regelmäßig – Safari kann Website-Daten löschen.</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 8 · 18.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Q'vuelta · Version 9 · 18.11.2026</p>`;
 }
 function dockHTML() {
   if (tab === 'fahrt') {
@@ -722,7 +730,7 @@ function init() {
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-t]'); if (t && t.closest('#tabs')) { tab = t.dataset.t; sub = null; render(); window.scrollTo(0, 0); return; }
     if (e.target.dataset.x === 'cancel' || e.target.classList.contains('sheet-bg')) return closeSheet();
-    const a = e.target.closest('[data-a]'); if (a && actions[a.dataset.a]) { if (['tank', 'service', 'reifen', 'notiz'].includes(a.dataset.a)) closeSheet(); actions[a.dataset.a](a); }
+    const a = e.target.closest('[data-a]'); if (a && actions[a.dataset.a]) { if (a.dataset.a === 'start') hap(2); if (['tank', 'service', 'reifen', 'notiz'].includes(a.dataset.a)) closeSheet(); actions[a.dataset.a](a); }
   });
   document.addEventListener('change', e => {
     if (e.target.id !== 'imp' || !e.target.files[0]) return;
