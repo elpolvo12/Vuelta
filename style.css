@@ -586,3 +586,81 @@ body::before{filter:blur(18px);transform:scale(1.08)}
 /* v14b: Sticky-Titel über dem Blur (kein Stapelkontext auf #view) */
 #view{z-index:auto!important;will-change:auto!important}
 #hdrbox{z-index:-1!important}
+/* v15: Tankstellen */
+.tks{margin:0 0 10px}
+.tkr .r{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tkr .dlt{font-size:13px;color:#8e8e93;font-variant-numeric:tabular-nums}
+.tkr .tag{margin-left:auto}.tkr .tag+.tag{margin-left:0}
+.tag.tg{color:var(--rg)}.tag.ty{color:var(--y)}
+/* v15: Tank kompakt */
+.tkh .tkm{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px}
+.tkh .tkm>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.tkh .tkm b{font-size:44px;font-weight:500;line-height:1;color:var(--rg);white-space:nowrap}
+.tkh .tkm b small{font-size:22px;font-weight:500;color:inherit}
+.tkh .tkm span{font-size:14px;color:#a8a8ae}
+.tkh.low .tkm b{color:var(--o)}
+/* v15: Tankstellen-Liste in einer Glaskarte */
+.tkl{padding:4px 0!important}
+.tkr{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:12px 16px;text-align:left;color:#fff;background:none;border:0}
+.tkr+.tkr{border-top:.5px solid rgba(255,255,255,.08)}
+.tkr:active{background:rgba(255,255,255,.05)}
+.tkr .tn{display:flex;flex-direction:column;gap:3px;min-width:0}
+.tkr .tn b{font-size:16px;font-weight:600}
+.tkr .tn span{font-size:13px;color:#8e8e93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tkr .tt{display:flex;gap:6px;margin-top:3px}
+.tkr .tt em{font-style:normal;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px}
+.tkr .tt em.tg{color:var(--rg);background:rgba(58,148,102,.16)}
+.tkr .tt em.ty{color:var(--y);background:rgba(255,214,90,.14)}
+.tkr .tp{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none}
+.tkr .tp b{font-size:24px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
+.tkr .tp b.g{color:var(--rg)}
+.tkr .tp b sup{font-size:13px;vertical-align:top;position:relative;top:-1px;margin-left:1px}
+.tkr .tp span{font-size:12px;color:#8e8e93}
+.tkr .tn b,.tkr .tp b{text-transform:none!important;letter-spacing:0!important}
+.btz .rt b{color:var(--y);font-weight:600}
+.btz .info{margin-top:4px}
+.btz .rt b{text-transform:none!important;letter-spacing:0!important}
+/* v16: Pendel-Wetter */
+.pwr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.pw{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.04)}
+.pw .l{font-size:12px;color:#8e8e93}
+.pw b{display:flex;align-items:center;gap:6px;font-size:26px;font-weight:500}
+.pw .s{font-size:13px;color:#a8a8ae}
+.pw.bad b,.pw.bad .s{color:var(--o)}
+/* v16: Tanken auf dem Weg */
+.rtk .r{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px}
+.rtk .tn{display:flex;flex-direction:column;gap:3px;min-width:0}
+.rtk .tn b{font-size:16px;font-weight:600;text-transform:none;letter-spacing:0}
+.rtk .tn span{font-size:13px;color:#8e8e93}
+.rtk .info{margin-top:6px}
+/* v16: Service-Prognose */
+.svf{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:13px;color:#a8a8ae}
+/* v16: Routenvergleich */
+.rvc svg{margin:6px 0 4px}
+.rv{display:grid;grid-template-columns:10px 1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:baseline;padding:8px 0;border-top:.5px solid rgba(255,255,255,.08)}
+.rv i{width:10px;height:10px;border-radius:50%;grid-row:1/3;align-self:center}
+.rv .nm{font-size:15px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.rv .nm small{font-size:12px;font-weight:400;color:#8e8e93}
+.rv b{font-size:20px;font-weight:500;text-align:right}.rv b small{font-size:12px;color:#8e8e93}
+.rv .sd{grid-column:2/4;font-size:12px;color:#8e8e93}
+.rvc .info{margin-top:6px}
+/* v16: NFC */
+.stp{margin:10px 0 0 18px;padding:0;font-size:14px;color:#c7c7cc;line-height:1.5}
+.pw .l{text-transform:none!important;letter-spacing:0!important}
+.rtk .tpx sup{font-size:13px;vertical-align:top;position:relative;top:2px;margin-left:1px}
+.rv b small,.rv .nm small{text-transform:none!important;letter-spacing:0!important}
+.rtk .tpx{white-space:nowrap;flex:none;font-size:30px}.rtk .tpx small{font-size:13px;text-transform:none!important;letter-spacing:0!important;color:#8e8e93}
+.pw .fz{font-size:12px;color:var(--gr)}
+.lgh{display:flex;align-items:center;gap:6px;font-size:12px;color:#8e8e93;margin:-2px 0 6px}.lgh i{width:9px;height:9px;border-radius:50%;background:#ff3a1c}
+.pps .ppr{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:#a8a8ae}.pps .ppr b{color:#fff;font-weight:600}
+.pps .hv b{color:var(--rg)}
+.card>.hv{display:flex;align-items:baseline;gap:6px;margin:4px 0 6px}.card>.hv b{font-size:40px;font-weight:500;line-height:1}.card>.hv small{font-size:15px;color:#a8a8ae}
+.eta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:#a8a8ae;margin:6px 0 2px}.eta b{color:#fff;font-weight:600;font-size:15px}.eta span{color:#8e8e93}
+.eta b{text-transform:none!important;letter-spacing:0!important}.eta small{flex-basis:100%;padding-left:20px;font-size:12px;color:#8e8e93}
+.lgt .info{margin-top:6px}
+.rvc .wl{display:flex;align-items:center;gap:6px;margin-top:4px}
+/* v16: Karten zoombar */
+.zm{overflow:hidden;border-radius:12px;touch-action:pan-y;position:relative}
+.zm>svg{transform-origin:0 0;display:block}
+.zm svg *{vector-effect:non-scaling-stroke}
+.maplibregl-cooperative-gesture-screen{background:rgba(0,0,0,.55)!important;color:#fff!important;font:600 15px/1.3 var(--f)!important;border-radius:16px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}

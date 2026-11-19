@@ -23,6 +23,7 @@ const IP = {
   flake: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>',
   pin: '<path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  light: '<rect x="7.5" y="2.5" width="9" height="19" rx="4.5"/><circle cx="12" cy="7" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="17" r="1.6"/>',
   route: '<circle cx="6" cy="19" r="2.6"/><path d="M8.6 19h8.4a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.4"/><circle cx="18" cy="5" r="2.6"/>',
   speed: '<path d="M4 17a8 8 0 1 1 16 0M12 17l4-6"/>',
   cal: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
@@ -133,7 +134,7 @@ async function fetchForecast() {
   if (fc && Date.now() - fc.at < 15 * 60e3) return;
   const p = db.settings.lastPos || { lat: 52.52, lon: 13.4 };
   try {
-    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation,wind_gusts_10m&forecast_hours=18&wind_speed_unit=kmh&timezone=auto');
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation,wind_gusts_10m&forecast_hours=40&wind_speed_unit=kmh&timezone=auto');
     const j = await r.json();
     const warns = [], cur = j.current, hh = j.hourly;
     const h = { time: hh.time.slice(0, 4), precipitation: hh.precipitation.slice(0, 4), temperature_2m: hh.temperature_2m.slice(0, 4) };
@@ -161,11 +162,51 @@ async function fetchForecast() {
     }
     const gMax = Math.max(cur.wind_gusts_10m, ...hh.wind_gusts_10m.slice(0, 4));
     if (gMax >= 45) warns.push({ lv: 'warn', icon: 'wind', t: 'Starker Wind', d: 'Böen bis ' + Math.round(gMax) + ' km/h · vorsichtig fahren' });
-    fc = { at: Date.now(), warns, temp: cur.temperature_2m, code: cur.weather_code, wind: Math.round(cur.wind_speed_10m), gust: Math.round(cur.wind_gusts_10m), wdir: cur.wind_direction_10m };
+    const slot = (d, a, b) => { const x = L.filter(y => y.d === d && y.hr >= a && y.hr <= b); if (!x.length) return null; return { hr: x[Math.floor(x.length / 2)].hr, T: Math.min(...x.map(y => y.T)), p: Math.max(...x.map(y => y.p)) }; };
+    const tmr = L.find(x => x.d !== today0) ? L.find(x => x.d !== today0).d : today0, goD = hr < 10 ? today0 : tmr, bkD = hr < 19 ? today0 : tmr;
+    const commute = { go: slot(goD, 7, 9), back: slot(bkD, 17, 19), goTmr: goD !== today0, backTmr: bkD !== today0 };
+    fc = { at: Date.now(), commute, warns, temp: cur.temperature_2m, code: cur.weather_code, wind: Math.round(cur.wind_speed_10m), gust: Math.round(cur.wind_gusts_10m), wdir: cur.wind_direction_10m };
     if (tab === 'fahrt' && !sub && !rec) render();
   } catch (e) { }
 }
 /* Tankstellen (Tankerkönig, eigener kostenloser Schlüssel nötig) */
+/* Preisverlauf selbst sammeln: je Tankstelle höchstens ein Wert pro halbe Stunde */
+function logPrices(list) {
+  const P = db.prices || (db.prices = []), now = Date.now();
+  list.forEach(x => { if (!x.id) return; const l = P.findLast ? P.findLast(p => p.id === x.id) : null; if (l && now - l.t < 30 * 60000) return; P.push({ id: x.id, t: now, p: x.price }); });
+  if (P.length > 6000) P.splice(0, P.length - 6000); save();
+}
+async function pricePing() {
+  const k = db.settings.tkKey; if (!k) return; const p = db.settings.lastPos; if (!p) return;
+  try { const r = await fetch('https://creativecommons.tankerkoenig.de/json/list.php?lat=' + p.lat + '&lng=' + p.lon + '&rad=5&sort=dist&type=e5&apikey=' + encodeURIComponent(k)); const j = await r.json(); if (j.ok) logPrices((j.stations || []).filter(s => s.isOpen && s.price).map(s => ({ id: s.id, price: s.price }))); } catch (e) { }
+}
+/* Abweichung vom Tagesmittel je Stunde (ct). Allgemein: einmalige Erhöhung um 12 Uhr, danach nur Senkungen */
+const GEN_H = [-1, -1, -1, -1, -1, -1.5, -1.8, -2.2, -2.6, -3, -3.4, -3.8, 5, 4.5, 4, 3.5, 3, 2.2, 1.6, 1, .5, 0, -.3, -.6];
+function priceProfile(id) {
+  const P = (db.prices || []).filter(p => !id || p.id === id), byDay = {};
+  P.forEach(p => { const d = new Date(p.t), k = p.id + d.toDateString(); (byDay[k] = byDay[k] || []).push(p); });
+  const sum = Array(24).fill(0), cnt = Array(24).fill(0); let days = 0;
+  Object.values(byDay).forEach(a => { if (a.length < 2) return; days++; const m = a.reduce((s, p) => s + p.p, 0) / a.length; a.forEach(p => { const h = new Date(p.t).getHours(); sum[h] += (p.p - m) * 100; cnt[h]++; }); });
+  const hrs = cnt.filter(c => c).length;
+  if (days < 7 || hrs < 10) return { v: GEN_H, own: false };
+  return { v: sum.map((x, h) => cnt[h] ? x / cnt[h] : GEN_H[h]), own: true, days };
+}
+function bestTimeCard(id, title) {
+  const pf = priceProfile(id), v = pf.v, h0 = new Date().getHours();
+  const mn = Math.min(...v), best = v.map((x, h) => x <= mn + 1 ? h : -1).filter(h => h >= 0), b0 = best[0], b1 = best[best.length - 1] + 1;
+  const W = 326, H = 120, x0 = 8, x1 = 318, lo = Math.min(...v) - 1, hi = Math.max(...v) + 1, X = h => x0 + h * (x1 - x0) / 23, Y = c => 92 - (c - lo) / (hi - lo) * 80;
+  const pts = v.map((c, h) => [X(h), Y(c)]);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><rect x="${X(b0) - 4}" y="6" width="${X(b1 - 1) - X(b0) + 8}" height="90" rx="6" fill="rgba(255,214,90,.10)"/>`;
+  s += `<line x1="${x0}" y1="${Y(0)}" x2="${x1}" y2="${Y(0)}" stroke="#3a3a3c" stroke-dasharray="3 4"/>`;
+  const pa = bez(pts.slice(0, 12).concat([[X(11.92), Y(v[11])]])), pb = bez(pts.slice(12));
+  s += `<path d="${pa} L${pts[12][0]},${pts[12][1]} ${pb.replace(/^M/, 'L')}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  s += `<circle cx="${X(h0)}" cy="${Y(v[h0])}" r="4.5" fill="#fff" stroke="#0e1110" stroke-width="2"/>`;
+  [0, 6, 12, 18, 23].forEach(h => s += `<text x="${X(h)}" y="114" text-anchor="${h === 0 ? 'start' : h === 23 ? 'end' : 'middle'}" font-size="10" fill="#8e8e93" ${FF}>${h === 23 ? 24 : h}</text>`);
+  s += '</svg>';
+  const now = v[h0], d = Math.round(now - mn);
+  const say = d <= 1 ? 'Jetzt günstig' : h0 >= b1 ? `Jetzt etwa ${d} ct über dem Tief · morgen ab ${b0} Uhr günstiger` : `Jetzt etwa ${d} ct über dem Tief · ab ${b0} Uhr günstiger`;
+  return `<div class="card btz">${kh('clock', title || 'Beste Zeit', pf.own ? 'eigene Messung · ' + pf.days + ' Tage' : 'allgemein')}<div class="rt"><b>${b0}–${b1} Uhr</b> am günstigsten</div>${s}<div class="info">${say}</div></div>`;
+}
 let stations = null;
 async function fetchStations() {
   const k = db.settings.tkKey;
@@ -174,10 +215,10 @@ async function fetchStations() {
   const pos = await new Promise(res => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lon: p.coords.longitude }), () => res(null), { timeout: 8000, maximumAge: 60000 }) : res(null));
   const p = pos || db.settings.lastPos || { lat: 52.52, lon: 13.4 };
   try {
-    const r = await fetch('https://creativecommons.tankerkoenig.de/json/list.php?lat=' + p.lat + '&lng=' + p.lon + '&rad=5&sort=price&type=e10&apikey=' + encodeURIComponent(k));
+    const r = await fetch('https://creativecommons.tankerkoenig.de/json/list.php?lat=' + p.lat + '&lng=' + p.lon + '&rad=5&sort=dist&type=e5&apikey=' + encodeURIComponent(k));
     const j = await r.json();
     if (!j.ok) throw 0;
-    stations = { at: Date.now(), list: (j.stations || []).filter(s => s.isOpen && s.price).slice(0, 3).map(s => ({ n: s.brand || s.name, price: s.price, dist: s.dist, lat: s.lat, lon: s.lng })) };
+    stations = { at: Date.now(), list: (j.stations || []).filter(s => s.isOpen && s.price).map(s => ({ id: s.id, n: s.brand || s.name, st: s.street || '', price: s.price, dist: s.dist, lat: s.lat, lon: s.lng })) }; stations.list.sort((a, b) => a.dist - b.dist); logPrices(stations.list);
   } catch (e) { stations = { err: 'net' }; }
   render();
 }
@@ -231,7 +272,7 @@ function onPos(p) {
 async function startTrip() {
   if (!navigator.geolocation) return toast('Kein GPS verfügbar');
   rec = { state: 'ready', route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null, stillSince: null, target: null };
-  clearInterval(autoT); autoT = setInterval(autoTick, 1000);
+  clearInterval(autoT); autoT = setInterval(autoTick, 1000); setTimeout(pricePing, 4000);
   watchId = navigator.geolocation.watchPosition(onPos, e => toast('GPS: ' + (e.code === 1 ? 'Zugriff verweigert' : 'kein Signal')), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
   try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (e) { }
   document.addEventListener('visibilitychange', reWake);
@@ -251,7 +292,7 @@ let autoT = null;
 function autoTick() {
   if (!rec || rec.state === 'ready') return;
   const now = Date.now(), stale = now - (rec.upd || 0) > 7000, slow = stale || rec.speed < 3;
-  if (slow) { if (!rec.stillSince) rec.stillSince = now; } else rec.stillSince = null;
+  if (slow) { if (!rec.stillSince) rec.stillSince = now; } else { if (rec.stillSince && rec.state === 'go' && rec.pos) { const d = (now - rec.stillSince) / 1000; if (d >= 8 && d < 60) (rec.stops = rec.stops || []).push([+rec.pos.lat.toFixed(5), +rec.pos.lon.toFixed(5), Math.round(d)]); } rec.stillSince = null; }
   if (!rec.stillSince) return;
   const s = (now - rec.stillSince) / 1000;
   if (rec.state === 'go' && s >= 60) { rec.state = 'pause'; hap(1); }
@@ -291,7 +332,7 @@ function stopTrip(endAt) {
     ser, route: ds(r.route, 150).map(x => Array.isArray(x[0]) ? x[Math.floor(x.length / 2)] : x), stop: r.stop, wind: r.weather ? r.weather.wind : null, gust: r.weather ? r.weather.gust : null,
     id: uid(), start: r.start, end: end.toISOString(), km: Math.round(km * 100) / 100, dur: Math.round(dur),
     max: Math.round(r.max), avg: Math.round(km / (dur / 3600)), temp: r.weather ? r.weather.temp : null, code: r.weather ? r.weather.code : null,
-    commute: km > pk * 0.6 && km < pk * 1.6, zk: r.zm.map(x => Math.round(x / 10) / 100), spark: sp
+    commute: km > pk * 0.6 && km < pk * 1.6, zk: r.zm.map(x => Math.round(x / 10) / 100), stops: (r.stops || []).slice(0, 200), spark: sp
   };
   db.trips.unshift(trip); save(); toast('Fahrt gespeichert: ' + nf(km) + ' km'); render();
   nameTrip(trip).then(() => render());
@@ -306,6 +347,11 @@ function placeName(p) {
   const k = p.lat.toFixed(3) + ',' + p.lon.toFixed(3); if (geoC[k]) return Promise.resolve(geoC[k]);
   geoQ = geoQ.then(() => new Promise(r => setTimeout(r, 1100))).then(() => fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=de&lat=' + p.lat + '&lon=' + p.lon).then(r => r.json()).then(j => { const a = j.address || {}; return geoC[k] = a.suburb || a.quarter || a.city_district || a.neighbourhood || a.town || a.village || a.city || null; }).catch(() => null));
   return geoQ;
+}
+/* Straßenname einer Ampel (Kreuzung), einmal geholt und gespeichert */
+function streetName(p, key) {
+  if (streetName.busy && streetName.busy[key]) return; (streetName.busy = streetName.busy || {})[key] = 1;
+  geoQ = geoQ.then(() => new Promise(r => setTimeout(r, 1100))).then(() => fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&accept-language=de&lat=' + p.lat + '&lon=' + p.lon).then(r => r.json()).then(j => { const a = j.address || {}, n = a.road || a.square || a.neighbourhood; if (n) { (db.settings.spotNames = db.settings.spotNames || {})[key] = n; save(); if (tab === 'fahrten' && !sub) render(); } }).catch(() => { }));
 }
 function nameTrip(t) {
   if (!t.route || t.route.length < 2 || (t.from && t.to)) return Promise.resolve();
@@ -700,9 +746,120 @@ function miniCurve(a, w, h) {
 }
 const daysAgo = s => s ? (Date.now() - new Date(s)) / 864e5 : 1e9;
 const icn = n => /öl/i.test(n) ? 'oil' : /insp/i.test(n) ? 'wrench' : /hu|tüv/i.test(n) ? 'note' : /reif/i.test(n) ? 'tire' : /variator|riemen/i.test(n) ? 'bolt' : 'wrench';
-const remCard = (r, s2) => `<div class="card rem">${kh(icn(r.name), esc(r.name), lamp(s2.level))}<div class="rt">${esc(s2.text)}</div><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="ghost lnk" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`;
+const remCard = (r, s2) => `<div class="card rem">${kh(icn(r.name), esc(r.name), lamp(s2.level))}<div class="rt">${esc(s2.text)}</div>${svcForecast(r)}<div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="ghost lnk" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`;
 /* Wichtige Hinweise: eigene Kachel ganz oben, bleibt bis zum Wegtippen (max. 12 h) */
 function notice(t, d) { db.settings.notice = { t, d, at: new Date().toISOString() }; save(); hap(2); }
+/* Eigene Fahrzeit: aus deinen Fahrten (Tempo inkl. Ampeln), sonst eigener Faktor */
+function mySpeed(hr) {
+  const T = db.trips.filter(t => t.dur > 180 && t.km > 1 && Date.now() - new Date(t.start) < 120 * 864e5), near = hr == null ? T : T.filter(t => Math.abs(new Date(t.start).getHours() - hr) <= 1);
+  const use = near.length >= 5 ? near : T; if (use.length < 5) return { v: 25 / (db.settings.etaF || 1), own: false };
+  return { v: use.reduce((a, t) => a + t.km, 0) / (use.reduce((a, t) => a + t.dur, 0) / 3600), own: true, n: use.length };
+}
+const myMin = (km, hr) => Math.max(1, Math.round(km / mySpeed(hr).v * 60));
+function etaLine() {
+  const c = db.settings.pendelKm; if (!c) return '';
+  const h = new Date().getHours(), dir = h < 12 ? 'zur Arbeit' : 'nach Hause', ms = mySpeed(h);
+  const cm = db.trips.filter(t => t.commute && t.dur > 120 && Math.abs(new Date(t.start).getHours() - h) <= 1 && Date.now() - new Date(t.start) < 120 * 864e5).map(t => t.dur / 60).sort((a, b) => a - b);
+  const m = cm.length >= 4 ? Math.round(cm[Math.floor(cm.length / 2)]) : myMin(c * 1.15, h), lo = cm.length >= 4 ? Math.round(cm[Math.floor(cm.length * .2)]) : null, hi = cm.length >= 4 ? Math.round(cm[Math.floor(cm.length * .8)]) : null;
+  return `<div class="eta">${ic('clock', 14)} Jetzt ${dir}: <b>${m} min</b>${lo != null && hi > lo ? ` <span>(${lo}–${hi})</span>` : ''}<small>${cm.length >= 4 ? 'aus deinen ' + cm.length + ' Fahrten um diese Uhrzeit' : ms.own ? 'aus deinem Ø von ' + Math.round(ms.v) + ' km/h' : 'mit deinem Faktor ' + nf(db.settings.etaF || 1, 2)}</small></div>`;
+}
+/* Pendel-Wetter: Hin- und Rückweg */
+function commuteCard() {
+  if (!fc || !fc.commute || !fc.commute.go || !fc.commute.back) return '';
+  const c = fc.commute, d = new Date().getDay(); if (d === 0 || d === 6) return '';
+  const col = (lab, x, tmr) => { const wet = x.p >= 0.2, ice = x.T <= 1 || (x.T <= 3 && x.p >= 0.1); const v = 45 + (fc.wind || 0) * .5, wc = x.T <= 12 ? 13.12 + .6215 * x.T - 11.37 * v ** .16 + .3965 * x.T * v ** .16 : x.T; return `<div class="pw ${wet || ice ? 'bad' : ''}"><span class="l">${lab}${tmr ? ' · morgen' : ''} · ${x.hr} Uhr</span><b>${ic(wet ? 'rain' : ice ? 'flake' : 'cloud', 18)} ${nf(x.T, 0)}°</b><span class="fz">gefühlt ${nf(wc, 0)}° bei 45 km/h</span><span class="s">${ice ? 'Glätte möglich' : wet ? 'Regen ' + nf(x.p, 1) + ' mm' : 'Trocken'}</span></div>`; };
+  const bad = [c.go, c.back].some(x => x.p >= 0.2 || x.T <= 1);
+  return `<div class="card pwc">${kh('work', 'Pendeln', bad ? lamp(1).replace('bald', 'Achtung') : '')}${etaLine()}<div class="pwr">${col('Hinweg', c.go, c.goTmr)}${col('Rückweg', c.back, c.backTmr)}</div></div>`;
+}
+/* Tanken auf dem Arbeitsweg: günstigste Tankstelle nahe der Linie Zuhause–Arbeit */
+let routeSt = null;
+const segDist = (p, a, b) => { const k = Math.cos(a.lat * Math.PI / 180), ax = a.lon * k, ay = a.lat, bx = b.lon * k, by = b.lat, px = p.lon * k, py = p.lat, dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1))); return Math.hypot(px - ax - t * dx, py - ay - t * dy) * 111.2; };
+async function fetchRouteStations() {
+  const k = db.settings.tkKey, a = db.settings.home, b = db.settings.work; if (!k || !a || !b) return;
+  if (routeSt && Date.now() - routeSt.at < 30 * 60e3) return;
+  const m = { lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 }, L0 = hav(a, b) / 1000, rad = Math.min(25, Math.ceil(L0 / 2 + 1));
+  try { const r = await fetch('https://creativecommons.tankerkoenig.de/json/list.php?lat=' + m.lat + '&lng=' + m.lon + '&rad=' + rad + '&sort=dist&type=e5&apikey=' + encodeURIComponent(k)); const j = await r.json(); if (!j.ok) return;
+    const L = (j.stations || []).filter(s => s.isOpen && s.price).map(s => ({ id: s.id, n: s.brand || s.name, st: s.street || '', price: s.price, lat: s.lat, lon: s.lng, off: segDist({ lat: s.lat, lon: s.lng }, a, b) })).filter(s => s.off <= 0.8);
+    logPrices(L); routeSt = { at: Date.now(), list: L.sort((x, y) => x.price - y.price) }; if (tab === 'fahrt' && !sub && !rec) render(); } catch (e) { }
+}
+function routeTankCard(ts) {
+  if (!ts || ts.frac >= 0.3 || !db.settings.home || !db.settings.work) return '';
+  fetchRouteStations(); if (!routeSt || !routeSt.list.length) return '';
+  const x = routeSt.list[0], det = myMin(x.off * 2, new Date().getHours()), h = new Date().getHours(), i = 'rs';
+  const tip = h < 12 ? 'vor 12 Uhr günstig' : 'morgen früh günstiger';
+  return `<button class="card btn rtk" data-a="rtroute">${kh('fuel', 'Tanken auf dem Weg', Math.round(ts.frac * 100) + ' %')}<div class="r"><div class="tn"><b>${esc(x.n)}</b><span>${esc(x.st)} · +${det} min Umweg</span></div><b class="big tpx" style="color:var(--rg)">${(v => { const t = v.toFixed(3); return t.slice(0, -1).replace('.', ',') + '<sup>' + t.slice(-1) + '</sup>'; })(x.price)}<small> €/l</small></b></div><div class="info">${tip}</div></button>`;
+}
+/* Service-Prognose aus dem Kilometerschnitt der letzten 8 Wochen */
+function svcForecast(r) {
+  if (!r.everyKm) return '';
+  const T = db.trips.filter(t => Date.now() - new Date(t.start) < 56 * 864e5), kmW = T.reduce((a, t) => a + t.km, 0) / 8; if (kmW < 5) return '';
+  const left = r.lastOdo + r.everyKm - currentOdo(); if (left <= 0) return '';
+  let d = new Date(Date.now() + left / kmW * 7 * 864e5);
+  if (r.everyMonths && r.lastDate) { const d2 = new Date(r.lastDate); d2.setMonth(d2.getMonth() + r.everyMonths); if (d2 < d) d = d2; }
+  const M = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'], q = d.getDate() <= 10 ? 'Anfang' : d.getDate() <= 20 ? 'Mitte' : 'Ende';
+  return `<div class="svf">${ic('cal', 13)} Voraussichtlich ${q} ${M[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''} · bei ${Math.round(kmW)} km pro Woche</div>`;
+}
+/* Pendelrouten vergleichen: Fahrten nach Richtung und Weg gruppieren */
+function routeVariants() {
+  const a = db.settings.home, b = db.settings.work; if (!a || !b) return [];
+  const T = db.trips.filter(t => t.commute && t.route && t.route.length > 8 && t.dur > 120 && Date.now() - new Date(t.start) < 120 * 864e5);
+  const G = [];
+  T.forEach(t => {
+    const p0 = { lat: t.route[0][0], lon: t.route[0][1] }, dir = hav(p0, a) < hav(p0, b) ? 'go' : 'back';
+    const pts = [.25, .5, .75].map(f => t.route[Math.floor(t.route.length * f)]);
+    let g = G.find(g => g.dir === dir && g.pts.every((q, i) => hav({ lat: q[0], lon: q[1] }, { lat: pts[i][0], lon: pts[i][1] }) < 450));
+    if (!g) { g = { dir, pts, trips: [], route: t.route }; G.push(g); }
+    g.trips.push(t);
+  });
+  return G.filter(g => g.trips.length >= 2).map(g => { const d = g.trips.map(t => t.dur / 60), m = d.reduce((x, y) => x + y, 0) / d.length, sd = Math.sqrt(d.reduce((x, y) => x + (y - m) ** 2, 0) / d.length), st = g.trips.reduce((x, t) => x + (t.stop || 0), 0) / g.trips.length / 60; return { ...g, n: g.trips.length, m, sd, st }; });
+}
+function lightsYearCard() {
+  const y = new Date().getFullYear(), T = db.trips.filter(t => new Date(t.start).getFullYear() === y), s = T.reduce((a, t) => a + (t.stop || 0), 0);
+  if (s < 600) return '';
+  const hh = s / 3600, cm = T.filter(t => t.commute), sc = cm.reduce((a, t) => a + (t.stop || 0), 0), dur = T.reduce((a, t) => a + t.dur, 0);
+  const wk = []; for (let i = 7; i >= 0; i--) { const a0 = Date.now() - (i + 1) * 7 * 864e5, a1 = a0 + 7 * 864e5, x = db.trips.filter(t => { const q = +new Date(t.start); return t.commute && q >= a0 && q < a1; }); wk.push(x.length ? x.reduce((a, t) => a + (t.stop || 0), 0) / x.length / 60 : 0); }
+  return `<div class="g2"><div class="t hero lgt">${kh('light', 'An Ampeln', String(y))}<div class="hv"><b>${nf(hh, hh < 10 ? 1 : 0)}</b><small>Stunden</small></div><div class="hx">${miniCurve(wk, 150, 44)}<div class="hxl"><span>8 WO.</span><span>JETZT</span></div></div><div class="info">${Math.round(s / dur * 100)} % deiner Fahrzeit · Pendeln Ø ${Math.round(sc / Math.max(1, cm.length) / 60)} min pro Fahrt</div></div></div>`;
+}
+/* Pendlerpauschale: Arbeitstage mit Pendelfahrt × einfache Entfernung × 0,38 € (seit 2026 ab dem ersten Kilometer) */
+function commuteDays(y) { const S = new Set(); db.trips.forEach(t => { const d = new Date(t.start); if (t.commute && d.getFullYear() === y) S.add(t.start.slice(0, 10)); }); return [...S].sort(); }
+function pauschaleCard() {
+  const y = new Date().getFullYear(), D = commuteDays(y), km = Math.round(db.settings.pendelKm || 0); if (!D.length || !km) return '';
+  const eur = D.length * km * 0.38, m = new Date().getMonth() + 1, proj = Math.round(D.length / Math.max(1, (Date.now() - new Date(y, 0, 1)) / 864e5) * 365 * km * .38);
+  return `<div class="card pps">${kh('note', 'Pendlerpauschale ' + y, '0,38 € / km')}<div class="hv"><b>${nf(eur, 0)}</b><small>€</small></div><div class="ppr"><span><b>${D.length}</b> Arbeitstage</span><span><b>${km}</b> km einfach</span><span>≈ <b>${nf(proj, 0)} €</b> im Jahr</span></div><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="ppexport">${ic('note', 13)} Liste für die Steuer</button></div><p class="mu" style="margin:10px 0 0">Gezählt wird jeder Tag mit mindestens einer Pendelfahrt. Keine Steuerberatung.</p></div>`;
+}
+function routeCompareCard() {
+  const V = routeVariants(); if (!V.length) return '';
+  const COL = ['#efbb3c', '#d0d0d0', '#a88e60', '#98989f'];
+  let h = '';
+  ['go', 'back'].forEach(dir => {
+    const v = V.filter(x => x.dir === dir).sort((x, y) => x.m - y.m).slice(0, 3); if (v.length < 2) return;
+    const all = v.flatMap(x => x.route), la = all.map(p => p[0]), lo = all.map(p => p[1]), k = Math.cos(la[0] * Math.PI / 180);
+    const x0 = Math.min(...lo), x1 = Math.max(...lo), y0 = Math.min(...la), y1 = Math.max(...la), W = 326, H = 128, PX = 34, PY = 20, sc = Math.min((W - 2 * PX) / ((x1 - x0) * k || 1e-6), (H - 2 * PY) / ((y1 - y0) || 1e-6));
+    const ox = (W - (x1 - x0) * k * sc) / 2, oy = (H - (y1 - y0) * sc) / 2, P = p => [ox + (p[1] - x0) * k * sc, H - oy - (p[0] - y0) * sc];
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
+    v.slice().reverse().forEach((x, j) => { const i = v.length - 1 - j; svg += `<polyline points="${x.route.map(p => P(p).map(n => n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${COL[i]}" stroke-width="${i ? 1.8 : 2.4}" stroke-linecap="round" stroke-linejoin="round" opacity="${i ? .7 : 1}"/>`; });
+    /* Ampeln: Querstriche wie Tacho-Teilstriche, Länge = Wartezeit, in der Farbe der Route */
+    const hot = [];
+    v.forEach((x, i) => x.trips.forEach(t => (t.stops || []).forEach(p => { let c = hot.find(c => c.i === i && hav({ lat: c.lat, lon: c.lon }, { lat: p[0], lon: p[1] }) < 60); if (!c) { c = { i, lat: p[0], lon: p[1], n: 0, s: 0 }; hot.push(c); } c.n++; c.s += p[2]; })));
+    const hs = hot.filter(c => c.n >= 3).map(c => ({ ...c, avg: c.s / c.n })), amx = Math.max(1, ...hs.map(c => c.avg)), worst = hs.slice().sort((a, b) => b.s - a.s)[0];
+    hs.forEach(c => {
+      const r = v[c.i].route, ni = r.reduce((m, p, j) => hav({ lat: p[0], lon: p[1] }, c) < hav({ lat: r[m][0], lon: r[m][1] }, c) ? j : m, 0), a0 = P(r[Math.max(0, ni - 1)]), a1 = P(r[Math.min(r.length - 1, ni + 1)]), q = P([c.lat, c.lon]);
+      let dx = a1[0] - a0[0], dy = a1[1] - a0[1]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l; const L = 3 + 7 * c.avg / amx;
+      svg += `<line x1="${(q[0] - dy * L).toFixed(1)}" y1="${(q[1] + dx * L).toFixed(1)}" x2="${(q[0] + dy * L).toFixed(1)}" y2="${(q[1] - dx * L).toFixed(1)}" stroke="${COL[c.i]}" stroke-width="1.6" stroke-linecap="round"/>`;
+    });
+    if (worst) { const q = P([worst.lat, worst.lon]); svg += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4.6" fill="#0e1110" stroke="var(--o)" stroke-width="2.2"/>`; }
+    /* Start und Ziel als Endringe wie bei den Kurven */
+    const s0 = P(v[0].route[0]), s1 = P(v[0].route[v[0].route.length - 1]), lab = dir === 'go' ? ['Zuhause', 'Arbeit'] : ['Arbeit', 'Zuhause'];
+    [[s0, lab[0]], [s1, lab[1]]].forEach(([q, t]) => { const left = q[0] < W / 2; svg += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="3.4" fill="#0e1110" stroke="#98989f" stroke-width="1.8"/><text x="${(q[0] + (left ? -8 : 8)).toFixed(1)}" y="${(q[1] + 16).toFixed(1)}" text-anchor="${left ? 'start' : 'end'}" font-size="10" fill="#8e8e93" ${FF}>${t}</text>`; });
+    svg = '<div class="zm">' + svg + '</svg></div>';
+    let wl = '';
+    if (worst) { const key = worst.lat.toFixed(4) + ',' + worst.lon.toFixed(4), nm = (db.settings.spotNames || {})[key]; if (!nm) streetName(worst, key); wl = `<div class="info wl"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--o)" stroke-width="2"/></svg> Längster Halt${nm ? ': ' + esc(nm) : ''} · Ø ${Math.round(worst.avg)} s</div>`; }
+    const rows = v.map((x, i) => { const ns = x.trips.reduce((a, t) => a + (t.stops ? t.stops.length : 0), 0) / x.n; return `<div class="rv"><i style="background:${COL[i]}"></i><span class="nm">Weg ${String.fromCharCode(65 + i)}<small>${x.n} Fahrten</small></span><b>${Math.round(x.m)}<small> min</small></b><span class="sd">± ${Math.round(x.sd)} min · Ampeln Ø ${Math.round(x.st)} min${ns ? ' · ' + Math.round(ns) + ' Stopps' : ''}</span></div>`; }).join('');
+    const gain = Math.round(v[v.length - 1].m - v[0].m);
+    h += `<div class="card rvc">${kh('route', dir === 'go' ? 'Weg zur Arbeit' : 'Weg nach Hause', 'letzte 4 Monate')}${svg}${rows}${gain >= 1 ? `<div class="info">Weg A ist im Schnitt ${gain} min schneller</div>` : ''}${wl}</div>`;
+  });
+  return h;
+}
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
@@ -710,6 +867,7 @@ function viewFahrt() {
   const odo = currentOdo(), due = db.reminders.map(r => ({ r, s: reminderStatus(r) })).filter(x => x.s.level > 0), ts = tankState(), pk = db.settings.parked;
   let h = '';
   const nt = db.settings.notice; if (nt && daysAgo(nt.at) < .5) h += `<div class="card note">${kh('note', esc(nt.t), fmtTime(nt.at))}<div class="rt">${esc(nt.d)}</div><div class="r" style="margin-top:10px"><span></span><button class="ghost lnk" data-a="dismiss">Ok</button></div></div>`;
+  h += commuteCard() + routeTankCard(ts);
   (fc ? fc.warns : []).forEach(w => h += `<div class="card wx">${kh(w.icon, esc(w.t), lamp(1).replace('bald', 'Achtung'))}<div class="rt">${esc(w.d)}</div></div>`);
   if (daysAgo(db.settings.odoCheck || db.settings.odoDate) > 30) h += `<button class="actb" data-a="odophoto"><span>Kilometerstand abgleichen</span>${ic('speed', 17)}</button>`;
   if (db.trips.length && daysAgo(db.settings.lastBackup) > 7) h += `<button class="actb" data-a="export"><span>Daten sichern <small>· ${db.settings.lastBackup ? 'vor ' + Math.floor(daysAgo(db.settings.lastBackup)) + ' Tagen' : 'nie gesichert'}</small></span>${ic('note', 17)}</button>`;
@@ -771,14 +929,29 @@ function finderUpdate() {
 /* Tanken */
 function viewTanken() {
   const ts = tankState(); let h = '';
-  h += `<div class="g2"><div class="t hero tk ${ts && ts.frac < .25 ? 'low' : ''}">${kh('fuel', 'Tank', ts ? 'geschätzt' : '')}<div class="tv"><div class="hv"><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><small>${ts ? '≈ ' + Math.round(ts.range) + ' km · ' + nf(ts.liters, 1) + ' l' : 'volle Tankung eintragen'}</small></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 64) : ''}</div></div></div>`;
-  h += `<div class="sec">Günstig in der Nähe</div>`;
+  h += `<div class="card tkh ${ts && ts.frac < .25 ? 'low' : ''}">${kh('fuel', 'Tank', ts ? 'geschätzt' : '')}<div class="tkm"><div><b>${ts ? Math.round(ts.frac * 100) : '–'}<small>${ts ? ' %' : ''}</small></b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km Reichweite · ' + nf(ts.liters, 1) + ' l' : 'Volle Tankung eintragen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 58) : ''}</div></div>`;
+  h += bestTimeCard();
+  const srt = db.settings.tkSort || 'price';
+  h += `<div class="sec">Tankstellen in der Nähe</div>`;
   if (!db.settings.tkKey) h += `<button class="actb" data-a="settings"><span>Tankerkönig-Schlüssel eintragen</span>${ic('fuel', 17)}</button><p class="mu">Kostenlos auf creativecommons.tankerkoenig.de</p>`;
   else if (!stations || stations.loading) h += `<p class="mu">Lade Preise …</p>`;
   else if (stations.err) h += `<div class="card">${kh('fuel', 'Preise nicht erreichbar', lamp(1))}<div class="rt">Netz oder Schlüssel prüfen</div></div>`;
   else if (!stations.list.length) h += `<p class="mu">Keine geöffnete Tankstelle gefunden.</p>`;
-  else stations.list.forEach((x, i) => h += `<button class="card btn" data-a="route" data-i="${i}">${kh('pin', esc(x.n), nf(x.dist, 1) + ' km')}<div class="r"><b class="big"${i === 0 ? ' style="color:var(--rg)"' : ''}>${nf(x.price, 2)}<small> €/l · E10</small></b>${i === 0 ? '<span class="tag">günstigste</span>' : ''}</div>CHEV</button>`.replace('CHEV', '<span class="chev">›</span>'));
-  return h + (stations && stations.list ? '<p class="mu">Preise: Tankerkönig (CC BY 4.0)</p>' : '');
+  else {
+    const L = stations.list, minP = Math.min(...L.map(x => x.price)), cheap = L.find(x => x.price === minP), near = L.reduce((a, x) => x.dist < a.dist ? x : a, L[0]);
+    const S = L.slice().sort(srt === 'dist' ? (a, b) => a.dist - b.dist : (a, b) => a.price - b.price || a.dist - b.dist), N = stations.all ? S.length : Math.min(10, S.length);
+    h += `<div class="chips tks"><button class="c ${srt === 'price' ? 'on' : ''}" data-a="tks" data-f="price">Preis</button><button class="c ${srt === 'dist' ? 'on' : ''}" data-a="tks" data-f="dist">Nähe</button></div>`;
+    const pr = v => { const t = v.toFixed(3); return t.slice(0, -1).replace('.', ',') + '<sup>' + t.slice(-1) + '</sup>'; };
+    h += '<div class="card tkl">' + S.slice(0, N).map(x => {
+      const i = L.indexOf(x), d = Math.round((x.price - minP) * 100);
+      const tag = x === cheap ? '<em class="tg">Günstigste</em>' : x === near ? '<em class="ty">Nächste</em>' : '';
+      const tag2 = x === cheap && x === near ? '<em class="ty">Nächste</em>' : '';
+      return `<button class="tkr" data-a="route" data-i="${i}"><div class="tn"><b>${esc(x.n)}</b><span>${nf(x.dist, 1)} km${x.st ? ' · ' + esc(x.st) : ''}</span>${tag || tag2 ? `<div class="tt">${tag}${tag2}</div>` : ''}</div><div class="tp"><b class="${x === cheap ? 'g' : ''}">${pr(x.price)}</b><span>${d > 0 ? '+' + d + ' ct' : 'E5'}</span></div></button>`;
+    }).join('') + '</div>';
+    if (S.length > N) h += `<button class="actb" data-a="tkmore"><span>Alle ${S.length} anzeigen</span><span class="chev">›</span></button>`;
+    h += `<p class="mu">Super E5 · Preise: Tankerkönig (CC BY 4.0)</p>`;
+  }
+  return h;
 }
 function viewFahrten() {
   nameOldTrips();
@@ -795,6 +968,7 @@ function viewFahrten() {
   <div class="card">${kh('clock', 'Pendelzeit', '8 Wochen')}${rangeChart(wkGroups(all.filter(x => x.commute && x.dur > 120), x => Math.round(x.dur / 60)), cm.length ? cm.reduce((a, p) => a + p.y, 0) / cm.length : 0, 'min')}</div>
   <div class="card">${kh('speed', 'Tempo', 'Ø bis Höchstwert · 8 Wochen')}${rangeChart(wkGroups(all, x => x.max || x.avg).map((g, i) => ({ ...g, lo: wkGroups(all, x => x.avg)[i].lo })), all.length ? all.reduce((a, x) => a + (x.avg || 0), 0) / all.length : 0, 'km/h')}</div>
   <div class="card">${kh('bab', 'Zonen', '4 Wochen')}${(() => { const z = [0, 0, 0]; all.filter(x => Date.now() - new Date(x.start) < 28 * 864e5).forEach(x => (x.zk || [x.km, 0, 0]).forEach((v, k) => z[k] += v)); const S = z[0] + z[1] + z[2] || 1; return `<div class="zl">${z.map((v, k) => `<i style="flex:${Math.max(v / S, .002)};background:${ZCOL[k]}"></i>`).join('')}</div><div class="lg">${['Stadt', 'Land', 'Autobahn'].map((n, k) => `<span><i style="background:${ZCOL[k]}"></i>${n} ${Math.round(z[k] / S * 100)} %</span>`).join('')}</div>`; })()}</div>
+  ${lightsYearCard()}${routeCompareCard()}
   <div class="sec">Alle Fahrten</div>
   <div class="chips">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
   ${t.length ? t.map(x => {
@@ -831,7 +1005,9 @@ function initTripMap() {
     if (!document.body.contains(box)) return;
     const co = t.route.map(x => [x[1], x[0]]), bb = co.reduce((m, p) => [Math.min(m[0], p[0]), Math.min(m[1], p[1]), Math.max(m[2], p[0]), Math.max(m[3], p[1])], [180, 90, -180, -90]);
     const div = document.createElement('div'); div.className = 'mlmap'; box.appendChild(div);
-    const map = new maplibregl.Map({ container: div, style: 'https://tiles.openfreemap.org/styles/dark', bounds: [[bb[0], bb[1]], [bb[2], bb[3]]], fitBoundsOptions: { padding: 28 }, interactive: false, attributionControl: false, fadeDuration: 0 });
+    const map = new maplibregl.Map({ container: div, style: 'https://tiles.openfreemap.org/styles/dark', bounds: [[bb[0], bb[1]], [bb[2], bb[3]]], fitBoundsOptions: { padding: 28 }, cooperativeGestures: true, dragRotate: false, pitchWithRotate: false, touchPitch: false, doubleClickZoom: true, locale: { 'CooperativeGesturesHandler.MobileHelpText': 'Mit zwei Fingern verschieben und zoomen', 'CooperativeGesturesHandler.MacHelpText': '⌘ + Scrollen zum Zoomen', 'CooperativeGesturesHandler.WindowsHelpText': 'Strg + Scrollen zum Zoomen' }, attributionControl: false, fadeDuration: 0 });
+    map.touchZoomRotate.disableRotation(); map.keyboard.disable();
+    map.on('dblclick', () => {}); div.addEventListener('dblclick', e => { e.preventDefault(); map.fitBounds([[bb[0], bb[1]], [bb[2], bb[3]]], { padding: 28 }); });
     map.on('load', () => {
       /* Orientierung: Wasser, Grünflächen, Sehenswürdigkeiten dezent hervorheben */
       try { map.getStyle().layers.forEach(L => {
@@ -928,6 +1104,10 @@ function viewMehr() {
   <div class="sec">Erinnerungen</div>
   ${db.reminders.map(r => remCard(r, reminderStatus(r))).join('')}
   <button class="sm" data-a="newrem">+ Erinnerung</button>
+  <div class="sec">Steuer</div>
+  ${pauschaleCard()}
+  <div class="sec">Schnellstart</div>
+  <div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>
   <div class="sec">Einstellungen</div>
   <div class="card">
     <div class="srow"><span>Kilometerstand</span><em>${nf(currentOdo(), 0)} km</em></div><div class="srow"><span>Pendelstrecke</span><em>${nf(db.settings.pendelKm, 1)} km</em></div><div class="srow"><span>Tankgröße</span><em>${nf(db.settings.tank, 1)} l</em></div><div class="srow"><span>Nadel im Tacho</span><em>${db.settings.needle ? 'An' : 'Aus'}</em></div><div class="srow"><span>Tankerkönig-Schlüssel</span><em>${db.settings.tkKey ? 'Gesetzt' : '–'}</em></div>
@@ -940,7 +1120,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 14 · 19.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 15 · 19.11.2026</p>`;
 }
 function dockHTML() {
   /* Wie Fotos: links Gruppe, rechts eine Hauptaktion */
@@ -1035,6 +1215,17 @@ const actions = {
   },
   maps() { const p = db.settings.parked; if (p) location.href = 'https://maps.apple.com/?daddr=' + p.lat + ',' + p.lon + '&dirflg=w'; },
   opentank() { sub = 'tanken'; stations = null; render(); if (db.settings.tkKey) fetchStations(); },
+  async ppexport() {
+    const y = new Date().getFullYear(), D = commuteDays(y), km = Math.round(db.settings.pendelKm || 0);
+    const txt = 'Datum;Entfernung einfach (km);Pauschale (EUR)\n' + D.map(d => d.split('-').reverse().join('.') + ';' + km + ';' + (km * .38).toFixed(2).replace('.', ',')).join('\n') + '\nSumme;' + D.length + ' Tage;' + (D.length * km * .38).toFixed(2).replace('.', ',');
+    const name = 'pendlerpauschale-' + y + '.csv';
+    try { const f = new File([txt], name, { type: 'text/csv' }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Pendlerpauschale ' + y }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv' })); a.download = name; a.click();
+  },
+  rtroute() { const x = routeSt && routeSt.list[0]; if (x) location.href = 'https://maps.apple.com/?daddr=' + x.lat + ',' + x.lon + '&dirflg=d'; },
+  nfccopy() { const u = location.origin + location.pathname + '?start'; try { navigator.clipboard.writeText(u); toast('Link kopiert'); } catch (e) { toast(u); } },
+  tks(el) { db.settings.tkSort = el.dataset.f; save(); render(); },
+  tkmore() { if (stations) stations.all = true; render(); },
   route(el) { const s = stations && stations.list && stations.list[+el.dataset.i || 0]; if (s) location.href = 'https://maps.apple.com/?daddr=' + s.lat + ',' + s.lon + '&dirflg=d'; },
   navwork() { navTo('work', 'Arbeit'); }, navhome() { navTo('home', 'Zuhause'); },
   setwork() { setPlace('work', 'Arbeit'); }, sethome() { setPlace('home', 'Zuhause'); },
@@ -1057,8 +1248,8 @@ const actions = {
     o => { if (!o.km) return; const s = new Date((o.date || today()) + 'T08:00:00'); const dur = (o.min || 20) * 60;
       db.trips.push({ id: uid(), start: s.toISOString(), end: new Date(+s + dur * 1000).toISOString(), km: o.km, dur, max: 0, avg: Math.round(o.km / (dur / 3600)), temp: null, code: null, commute: true });
       db.trips.sort((a, b) => b.start.localeCompare(a.start)); }); },
-  settings() { openSheet('Einstellungen', [{ n: 'odo', l: 'Aktueller Kilometerstand (Tacho)', type: 'number', v: Math.round(currentOdo()) }, { n: 'pk', l: 'Pendelstrecke einfach (km)', type: 'number', v: db.settings.pendelKm }, { n: 'tank', l: 'Tankgröße (Liter)', type: 'number', v: db.settings.tank }, { n: 'tk', l: 'Tankerkönig-Schlüssel (optional)', v: db.settings.tkKey }, { n: 'needle', l: 'Nadel im Tacho anzeigen', type: 'check', v: db.settings.needle }],
-    o => { setOdo(o.odo); if (o.pk) db.settings.pendelKm = o.pk; if (o.tank) db.settings.tank = o.tank; db.settings.tkKey = o.tk || ''; db.settings.needle = o.needle; stations = null; }); },
+  settings() { openSheet('Einstellungen', [{ n: 'odo', l: 'Aktueller Kilometerstand (Tacho)', type: 'number', v: Math.round(currentOdo()) }, { n: 'pk', l: 'Pendelstrecke einfach (km)', type: 'number', v: db.settings.pendelKm }, { n: 'tank', l: 'Tankgröße (Liter)', type: 'number', v: db.settings.tank }, { n: 'tk', l: 'Tankerkönig-Schlüssel (optional)', v: db.settings.tkKey }, { n: 'etaF', l: 'Eigener Zeitfaktor (1 = 25 km/h, nur ohne genug eigene Fahrten)', type: 'number', v: db.settings.etaF || 1 }, { n: 'needle', l: 'Nadel im Tacho anzeigen', type: 'check', v: db.settings.needle }],
+    o => { setOdo(o.odo); if (o.pk) db.settings.pendelKm = o.pk; if (o.tank) db.settings.tank = o.tank; db.settings.tkKey = o.tk || ''; db.settings.needle = o.needle; if (+o.etaF > 0) db.settings.etaF = +String(o.etaF).replace(',', '.'); stations = null; }); },
   newrem() { remForm({ id: uid(), name: '', everyKm: 0, everyMonths: 0, lastOdo: Math.round(currentOdo()), lastDate: today() }, true); },
   editrem(el) { remForm(db.reminders.find(r => r.id === el.dataset.id)); },
   donerem(el) {
@@ -1108,8 +1299,20 @@ function remForm(r, isNew) {
 }
 
 /* ---------- Start ---------- */
+/* Zwei-Finger-Zoom und -Verschieben für SVG-Karten (.zm), Doppeltipp setzt zurück */
+function zoomable() {
+  let z = null;
+  document.addEventListener('touchstart', e => { const el = e.target.closest('.zm'); if (!el || e.touches.length !== 2) return; const g = el.firstElementChild, a = e.touches[0], b = e.touches[1], st = el._z || { s: 1, x: 0, y: 0 }; z = { el, g, st: { ...st }, d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), c0: [(a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2], r: el.getBoundingClientRect() }; }, { passive: true });
+  document.addEventListener('touchmove', e => { if (!z || e.touches.length !== 2) return; e.preventDefault(); const a = e.touches[0], b = e.touches[1], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), c = [(a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2];
+    const s = Math.max(1, Math.min(6, z.st.s * d / z.d0)), px = z.c0[0] - z.r.left, py = z.c0[1] - z.r.top, k = s / z.st.s;
+    let x = px - (px - z.st.x) * k + (c[0] - z.c0[0]), y = py - (py - z.st.y) * k + (c[1] - z.c0[1]); const w = z.r.width, h = z.r.height; x = Math.min(0, Math.max(w - w * s, x)); y = Math.min(0, Math.max(h - h * s, y));
+    z.el._z = { s, x, y }; z.g.style.transform = `translate(${x}px,${y}px) scale(${s})`; }, { passive: false });
+  document.addEventListener('touchend', e => { if (z && e.touches.length < 2) z = null; }, { passive: true });
+  let lt = 0; document.addEventListener('touchend', e => { const el = e.target.closest('.zm'); if (!el || e.changedTouches.length !== 1) return; const n = Date.now(); if (n - lt < 300) { el._z = null; el.firstElementChild.style.transition = 'transform .25s'; el.firstElementChild.style.transform = ''; setTimeout(() => el.firstElementChild.style.transition = '', 260); } lt = n; }, { passive: true });
+}
 function init() {
-  load(); save();
+  load(); save(); zoomable();
+  if (/[?&#]start\b/.test(location.search + location.hash)) { history.replaceState(null, '', location.pathname); setTimeout(() => { if (!rec) startTrip(); }, 400); }
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-t]'); if (t && t.closest('#tabs')) { const a = ORD.indexOf(tab), b = ORD.indexOf(t.dataset.t); if (a === b && !sub) return; slideTo(t.dataset.t, b >= a ? 1 : -1); return; }
     if (e.target.dataset.x === 'cancel' || e.target.classList.contains('sheet-bg')) return closeSheet();
@@ -1133,7 +1336,7 @@ function init() {
   document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', TI[b.dataset.t] ? ic(TI[b.dataset.t], 20) : '<svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'));
   /* Wischen zwischen den Seiten: Inhalt folgt dem Finger (nur Mitte, nicht im Fahrmodus) */
   let sw = null; const V = $('#view');
-  document.addEventListener('touchstart', e => { const t = e.touches[0]; sw = (e.touches.length === 1 && !rec && !sliding && $('#sheet').hidden && t.clientX > 28 && t.clientX < innerWidth - 28) ? { x: t.clientX, y: t.clientY, at: Date.now(), h: null } : null; }, { passive: true });
+  document.addEventListener('touchstart', e => { const t = e.touches[0]; sw = (e.touches.length === 1 && !e.target.closest('.mlmap,.zm') && !rec && !sliding && $('#sheet').hidden && t.clientX > 28 && t.clientX < innerWidth - 28) ? { x: t.clientX, y: t.clientY, at: Date.now(), h: null } : null; }, { passive: true });
   document.addEventListener('touchmove', e => {
     if (!sw) return; const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
     if (sw.h === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) sw.h = Math.abs(dx) > Math.abs(dy) * 1.3;
