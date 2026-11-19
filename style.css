@@ -547,3 +547,39 @@ body.scrolled .drow .cta:not(.go):not(.sec2){background:rgba(239,187,60,.5)!impo
 /* Starten in Gelb wie alle Hauptaktionen */
 .drow .cta.go,body.scrolled .drow .cta.go{background:rgba(255,214,90,.9)!important;color:#1a1204!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1.5px 5px rgba(255,250,230,.28),inset 0 0 12px rgba(255,245,210,.08)!important}
 .drow .cta.go svg{stroke:#1a1204!important;fill:none!important}
+/* Fix: Streifen unter der Statusleiste hervorholen */
+.vst{top:calc(env(safe-area-inset-top) + 4px)!important}
+#topblur{z-index:14}
+body:not(.scr2) #topblur{opacity:0!important}
+/* Gesamt-km klein links unten am Tacho */
+#drive .foot #oA{position:absolute;left:14px;top:-34px;font-size:15px!important;letter-spacing:.06em;color:#8e8e93!important;font-weight:500;min-width:0}
+#drive .foot #oA::after{content:" km";font-size:11px;color:#6e6e73}
+#drive .foot{position:relative;height:0;margin:0!important}
+
+/* v14: Gesamt + Monat unter dem Tacho */
+#drive .foot{margin-bottom:34px!important}
+#drive .foot #oA{position:static!important;font-size:17px!important;letter-spacing:.02em!important;color:inherit!important;font-weight:500!important;min-width:0!important}
+#drive .foot #oA::after{content:none!important}
+#drive .kmc{position:absolute;top:-22px;display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
+#drive #tA{left:20px;align-items:flex-start}#drive #mA{right:20px;align-items:flex-end}
+#drive .kmc .l{font-size:11px;font-weight:600;letter-spacing:.08em;color:#6e6e73}
+#drive .kmc .r{display:flex;align-items:baseline;gap:0;white-space:nowrap;letter-spacing:.02em}
+#drive .kmc b{font-size:17px;font-weight:500}
+#drive .kmc .u{margin-left:3px;font-size:11px;color:inherit}
+#drive #tA .r{color:#8e8e93}#drive #mA .r{color:#ffd65a}
+/* v14: Lack weicher */
+body::before{filter:blur(18px);transform:scale(1.08)}
+#drive .dbg{filter:blur(18px)}
+/* v14: Kacheln Glas wie Dock */
+#drive .tiles div,#drive .cv{background:rgba(30,32,32,.42)!important;-webkit-backdrop-filter:blur(20px) saturate(170%)!important;backdrop-filter:blur(20px) saturate(170%)!important;border:0!important;border-radius:18px!important;box-shadow:0 8px 22px rgba(0,0,0,.45),inset 0 2px 9px rgba(255,255,255,.14),inset 0 0 18px rgba(255,255,255,.05)!important}
+#drive .ch{padding:4px 12px 0!important;gap:10px;flex-wrap:nowrap!important;white-space:nowrap}
+#drive .ch>span{text-transform:none!important;letter-spacing:.02em!important;font-size:13px!important;font-weight:600!important;color:#a8a8ae!important}
+#drive .ch b{white-space:nowrap}
+#drive .mid .cv{display:flex!important;flex-direction:column}
+#dCv{flex:1;min-height:0;position:relative}
+#drive #dCv svg{position:absolute;left:8px;top:6px;width:calc(100% - 16px)!important;height:calc(100% - 18px)!important}
+#dCv svg *{vector-effect:non-scaling-stroke}
+#drive .mid .tiles div{padding:0 6px!important;gap:3px!important}
+#drive .mid .tiles div:nth-child(4){gap:2px!important;padding:0 4px!important}
+#drive .mid .tiles div:nth-child(4) b{font-size:22px!important}
+#drive .mid .tiles div svg{margin-right:2px}

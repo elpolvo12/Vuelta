@@ -394,7 +394,7 @@ function curveSVG(avg) {
   const X = t => x1 - (now - t) / span * (x1 - x0);
   const vmax = Math.max(60, ...h.map(x => x.v)), yv = v => 28 - 24 * v / vmax, ya = a => 48 - 11 * Math.max(-22, Math.min(22, a)) / 22;
   const grid = (a, b) => { let s = ''; for (let y = a; y < b; y += 6) s += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#1d1d1d"/>`; return s; };
-  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}">${grid(4, 28)}${grid(38, 62)}<line x1="${x0}" y1="28" x2="${x1}" y2="28" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="48" x2="${x1}" y2="48" stroke="#555" stroke-width="1"/>`;
+  let s = `<svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 ${W} ${H}">${grid(4, 28)}${grid(38, 62)}<line x1="${x0}" y1="28" x2="${x1}" y2="28" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="48" x2="${x1}" y2="48" stroke="#555" stroke-width="1"/>`;
   const sp = h.map(x => [X(x.t), yv(x.v)]), ac = h.map((x, i) => [X(x.t), ya(i ? x.v - h[i - 1].v : 0)]);
   if (sp.length > 1) {
     s += `<path d="${bez(sp)}" fill="none" stroke="#efbb3c" stroke-width="2.2" stroke-linejoin="round"/>`;
@@ -430,8 +430,8 @@ function mountDrive() {
   <div class="pop" id="dPop" hidden></div>
   <div class="dialbox" id="dBox"><img class="logo" id="dLogo" src="vuelta-logo.png" alt=""></div>
   <div id="holdOv"><svg viewBox="0 0 240 240" width="240" height="240"><circle cx="120" cy="120" r="100" fill="rgba(0,0,0,.82)" stroke="#2a2a2a" stroke-width="10"/><circle id="holdP" cx="120" cy="120" r="100" fill="none" stroke="#e0242c" stroke-width="10" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="628" transform="rotate(-90 120 120)"/><text x="120" y="112" text-anchor="middle" fill="#fff" font-size="44" font-family="-apple-system,Helvetica Neue,sans-serif" id="holdT">2,0 s</text><text x="120" y="146" text-anchor="middle" fill="#8c8c8c" font-size="15" letter-spacing="2" font-family="-apple-system,Helvetica Neue,sans-serif">FAHRT BEENDEN</text></svg></div>
-  <div class="foot fade"><b id="oA"></b><span class="c" id="dAqi"></span></div>
-  <div class="mid"><div class="cv fade"><div class="ch"><span>TEMPO · 30 MIN</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
+  <div class="foot fade"><div class="kmc" id="tA"><span class="l">GESAMT</span><span class="r"><b id="oA"></b><span class="u">km</span></span></div><div class="kmc" id="mA"><span class="l" id="mL"></span><span class="r"><b id="mK"></b><span class="u">km</span></span></div><span class="c" id="dAqi"></span></div>
+  <div class="mid"><div class="cv fade"><div class="ch"><span>Tempo · 30 Min</span><b>Ø <span id="dAvg" style="font-size:22px;color:inherit;letter-spacing:0">0</span> <small>km/h</small></b></div><div id="dCv"></div></div>
   <div class="tiles fade" id="dTiles"></div></div>
 <div class="endw endb"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><svg class="haz" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#ff2d2d" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3.2 22 20.5H2z"/><path d="M12 9.5 16.6 17.6H7.4z" stroke-width="1.6"/></svg></div><small>2 S HALTEN · BEENDEN</small></div>
   <img class="dlogo" src="vuelta-logo.png" alt="Vuelta">
@@ -510,12 +510,14 @@ function driveSecond(stale) {
   if (ice) chips += `<span class="info">${lamp(1).replace('bald', 'Glätte')}</span>`;
   if (w && w.wind != null) chips += `<span class="info${w.gust >= 45 ? ' gw' : ''}">${ic('wind', 13)} ${w.wind} km/h · Böen ${w.gust}</span>`;
   if (G('dChips').innerHTML !== chips) G('dChips').innerHTML = chips;
-  const odo = Math.floor(currentOdo() + liveKm()), os = nf(odo, 0);
+  const odo = Math.floor((currentOdo() + liveKm()) / 10) * 10, os = nf(odo, 0);
   G('oA').textContent = os;
+  const mk0 = new Date(now.getFullYear(), now.getMonth(), 1), mkm = db.trips.filter(t => new Date(t.start) >= mk0).reduce((a, t) => a + (t.km || 0), 0) + liveKm();
+  G('mL').textContent = MO[now.getMonth()]; G('mK').textContent = nf(Math.floor(mkm / 10) * 10, 0);
   G('dAvg').textContent = avg;
   G('dCv').innerHTML = curveSVG(rec.m > 0 ? avg : null);
   const h = rec.heading;
-  G('dTiles').innerHTML = `<div><b>${nf(liveKm(), 1)}</b><span>km</span></div><div><b>${Math.floor(sec / 60)}</b><span>min</span></div><div><b>${w ? nf(w.temp, 0) + '°' : '–'}</b><span>°C</span></div><div>${h != null ? `<svg width="16" height="16" viewBox="0 0 24 24" style="transform:rotate(${Math.round(h)}deg)" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3l7 17-7-4-7 4z"/></svg><b>${Math.round(h)}°</b><span>${dirName(h)}</span>` : '<b>–</b>'}</div>`;
+  G('dTiles').innerHTML = `<div><b>${nf(liveKm(), 1)}</b><span>km</span></div><div><b>${Math.floor(sec / 60)}</b><span>min</span></div><div><b>${w ? nf(w.temp, 0) : '–'}</b><span>°C</span></div><div>${h != null ? `<svg width="13" height="13" viewBox="0 0 24 24" style="transform:rotate(${Math.round(h)}deg)" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3l7 17-7-4-7 4z"/></svg><b>${Math.round(h)}°</b><span>${dirName(h)}</span>` : '<b>–</b>'}</div>`;
   const ts = tankState(liveKm()), col = !ts ? '#2a2a2a' : ts.frac > .5 ? '#3a9466' : ts.frac < .25 ? '#ff7a1a' : '#f2c14e';
   for (let i = 0; i <= 60; i++) { const e = G('fu' + i); if (e) e.setAttribute('stroke', ts && i / 60 <= ts.frac ? col : '#2a2a2a'); }
   const rg = G('rng'); if (rg) { rg.textContent = ts ? '≈ ' + Math.round(ts.range) + ' km' : 'TANK ?'; rg.setAttribute('fill', ts ? col : '#8c8c8c'); rg.setAttribute('opacity', drv.introDone ? 1 : ease((performance.now() - drv.t0) / 1000 - 5.0)); }
@@ -938,7 +940,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 13 · 19.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 14 · 19.11.2026</p>`;
 }
 function dockHTML() {
   /* Wie Fotos: links Gruppe, rechts eine Hauptaktion */
@@ -980,7 +982,7 @@ function render() {
   $('#dock').innerHTML = dockHTML();
   const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '260px' : '190px') : '120px';
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
-  moveInd();
+  moveInd(); requestAnimationFrame(() => window.dispatchEvent(new Event('scroll')));
   if (tab === 'fahrt' && sub === 'finden') { finderStart(); finderUpdate(); } else finderStop();
   window.scrollTo(0, y);
 }
