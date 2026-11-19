@@ -583,3 +583,6 @@ body::before{filter:blur(18px);transform:scale(1.08)}
 #drive .mid .tiles div:nth-child(4){gap:2px!important;padding:0 4px!important}
 #drive .mid .tiles div:nth-child(4) b{font-size:22px!important}
 #drive .mid .tiles div svg{margin-right:2px}
+/* v14b: Sticky-Titel über dem Blur (kein Stapelkontext auf #view) */
+#view{z-index:auto!important;will-change:auto!important}
+#hdrbox{z-index:-1!important}
