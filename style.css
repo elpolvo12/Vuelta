@@ -535,3 +535,15 @@ body.scrolled .drow .cta:not(.go):not(.sec2){background:rgba(239,187,60,.5)!impo
 .vst i,.vst u{border-radius:0!important}
 .vst u{border-bottom-left-radius:5px!important}
 .vst i:last-child{border-bottom-right-radius:5px!important}
+/* Fix: Dock passt immer in die Breite */
+.drow{width:100%;min-width:0}
+.drow .grp{flex:0 1 auto;min-width:0}
+.drow .grp button{padding:0 11px!important;gap:6px!important;font-size:14px!important}
+.drow .cta{flex:none;padding:0 16px 0 13px!important;font-size:15px!important;gap:7px!important}
+@media (max-width:360px){.drow .grp button span{display:none}.drow .grp button{padding:0 12px!important}}
+.drow .grp{overflow:hidden}
+.drow .grp button{min-width:0;flex:0 1 auto}
+.drow .grp button span{min-width:0;text-overflow:ellipsis}
+/* Starten in Gelb wie alle Hauptaktionen */
+.drow .cta.go,body.scrolled .drow .cta.go{background:rgba(255,214,90,.9)!important;color:#1a1204!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1.5px 5px rgba(255,250,230,.28),inset 0 0 12px rgba(255,245,210,.08)!important}
+.drow .cta.go svg{stroke:#1a1204!important;fill:none!important}
