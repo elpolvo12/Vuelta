@@ -664,3 +664,7 @@ body::before{filter:blur(18px);transform:scale(1.08)}
 .zm>svg{transform-origin:0 0;display:block}
 .zm svg *{vector-effect:non-scaling-stroke}
 .maplibregl-cooperative-gesture-screen{background:rgba(0,0,0,.55)!important;color:#fff!important;font:600 15px/1.3 var(--f)!important;border-radius:16px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+/* v16: Aufbau-Animation */
+@keyframes anIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+#view .an-in{animation:anIn .45s cubic-bezier(.3,.7,.2,1) both}
+@media (prefers-reduced-motion:reduce){#view .an-in{animation:none}}

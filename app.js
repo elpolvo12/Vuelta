@@ -177,7 +177,7 @@ function logPrices(list) {
   if (P.length > 6000) P.splice(0, P.length - 6000); save();
 }
 async function pricePing() {
-  const k = db.settings.tkKey; if (!k) return; const p = db.settings.lastPos; if (!p) return;
+  const k = db.settings.tkKey; if (!k) return; if (pricePing.last && Date.now() - pricePing.last < 5 * 60e3) return; pricePing.last = Date.now(); const p = db.settings.lastPos; if (!p) return;
   try { const r = await fetch('https://creativecommons.tankerkoenig.de/json/list.php?lat=' + p.lat + '&lng=' + p.lon + '&rad=5&sort=dist&type=e5&apikey=' + encodeURIComponent(k)); const j = await r.json(); if (j.ok) logPrices((j.stations || []).filter(s => s.isOpen && s.price).map(s => ({ id: s.id, price: s.price }))); } catch (e) { }
 }
 /* Abweichung vom Tagesmittel je Stunde (ct). Allgemein: einmalige Erhöhung um 12 Uhr, danach nur Senkungen */
@@ -211,6 +211,7 @@ let stations = null;
 async function fetchStations() {
   const k = db.settings.tkKey;
   if (!k) { stations = { err: 'key' }; return; }
+  if (fetchStations.last && Date.now() - fetchStations.last < 60e3 && stations && stations.list) return; fetchStations.last = Date.now();
   stations = { loading: true }; render();
   const pos = await new Promise(res => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lon: p.coords.longitude }), () => res(null), { timeout: 8000, maximumAge: 60000 }) : res(null));
   const p = pos || db.settings.lastPos || { lat: 52.52, lon: 13.4 };
@@ -777,6 +778,7 @@ const segDist = (p, a, b) => { const k = Math.cos(a.lat * Math.PI / 180), ax = a
 async function fetchRouteStations() {
   const k = db.settings.tkKey, a = db.settings.home, b = db.settings.work; if (!k || !a || !b) return;
   if (routeSt && Date.now() - routeSt.at < 30 * 60e3) return;
+  if (fetchRouteStations.last && Date.now() - fetchRouteStations.last < 5 * 60e3) return; fetchRouteStations.last = Date.now();
   const m = { lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 }, L0 = hav(a, b) / 1000, rad = Math.min(25, Math.ceil(L0 / 2 + 1));
   try { const r = await fetch('https://creativecommons.tankerkoenig.de/json/list.php?lat=' + m.lat + '&lng=' + m.lon + '&rad=' + rad + '&sort=dist&type=e5&apikey=' + encodeURIComponent(k)); const j = await r.json(); if (!j.ok) return;
     const L = (j.stations || []).filter(s => s.isOpen && s.price).map(s => ({ id: s.id, n: s.brand || s.name, st: s.street || '', price: s.price, lat: s.lat, lon: s.lng, off: segDist({ lat: s.lat, lon: s.lng }, a, b) })).filter(s => s.off <= 0.8);
@@ -1120,7 +1122,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 15 · 19.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 16 · 19.11.2026</p>`;
 }
 function dockHTML() {
   /* Wie Fotos: links Gruppe, rechts eine Hauptaktion */
@@ -1153,6 +1155,36 @@ function moveInd() {
   let ind = nav.querySelector('.ind'); if (!ind) { ind = document.createElement('i'); ind.className = 'ind'; nav.prepend(ind); }
   ind.style.left = on.offsetLeft + 'px'; ind.style.width = on.offsetWidth + 'px';
 }
+/* Aufbau-Animation: Linien zeichnen sich, Balken wachsen, Karten blenden ein.
+   Nur bei Seiten-/Tabwechsel und wenn ein Element ins Bild scrollt, jeweils einmal. */
+let animKey = '', animIO = null;
+const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animEl(card, delay) {
+  if (card.dataset.an) return; card.dataset.an = '1';
+  card.style.animationDelay = delay + 'ms'; card.classList.add('an-in');
+  card.querySelectorAll('svg path, svg polyline, svg line').forEach((p, i) => {
+    const sw = p.getAttribute('stroke'), da = p.getAttribute('stroke-dasharray') || p.style.strokeDasharray;
+    if (!sw || sw === 'none' || da || p.closest('.ic, .rl, button.c')) return;
+    let L = 0; try { L = p.getTotalLength(); } catch (e) { } if (!L || L < 6) return;
+    p.style.strokeDasharray = L; p.style.strokeDashoffset = L;
+    p.style.transition = `stroke-dashoffset ${Math.min(900, 380 + L * 1.2)}ms cubic-bezier(.3,.7,.2,1) ${delay + 80 + Math.min(i, 12) * 25}ms`;
+    requestAnimationFrame(() => requestAnimationFrame(() => { p.style.strokeDashoffset = 0; }));
+    setTimeout(() => { p.style.strokeDasharray = ''; p.style.strokeDashoffset = ''; p.style.transition = ''; }, delay + 1500);
+  });
+  card.querySelectorAll('svg rect').forEach((r, i) => { const h = +r.getAttribute('height'), w = +r.getAttribute('width'); if (!(h > 2 && w > 2) || r.getAttribute('fill') === 'none' || /rgba\(255,255,255,\.0/.test(r.getAttribute('fill') || '')) return;
+    r.style.transformBox = 'fill-box'; r.style.transformOrigin = h > w ? '50% 100%' : '0 50%'; r.style.transform = h > w ? 'scaleY(0)' : 'scaleX(0)';
+    r.style.transition = `transform 600ms cubic-bezier(.3,.7,.2,1) ${delay + 100 + Math.min(i, 16) * 22}ms`; requestAnimationFrame(() => requestAnimationFrame(() => { r.style.transform = ''; })); });
+}
+function animView() {
+  const key = tab + '|' + (sub || '') + '|' + (sub === 'trip' ? tripSel : '');
+  const cards = [...document.querySelectorAll('#view .card, #view .t, #view .tiles > div')];
+  if (reduceMotion() || (key === animKey && Date.now() - animView.at > 1500)) { cards.forEach(c => c.dataset.an = '1'); return; }
+  if (key !== animKey) animView.at = Date.now(); animKey = key; if (animIO) animIO.disconnect();
+  let n = 0;
+  animIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { animIO.unobserve(e.target); animEl(e.target, (n++ % 6) * 40); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
+  cards.forEach(c => animIO ? animIO.observe(c) : animEl(c, 0));
+  setTimeout(() => { n = 0; }, 700);
+}
 function render() {
   const v = $('#view'), y = window.scrollY;
   v.innerHTML = ({ fahrt: viewFahrt, fahrten: () => sub === 'trip' ? viewTrip() : viewFahrten(), logbuch: viewLogbuch, mehr: viewMehr })[tab]();
@@ -1165,6 +1197,7 @@ function render() {
   moveInd(); requestAnimationFrame(() => window.dispatchEvent(new Event('scroll')));
   if (tab === 'fahrt' && sub === 'finden') { finderStart(); finderUpdate(); } else finderStop();
   window.scrollTo(0, y);
+  animView();
 }
 
 /* ---------- Formulare ---------- */
