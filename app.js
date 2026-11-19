@@ -23,19 +23,23 @@ const IP = {
   flake: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>',
   pin: '<path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  route: '<path d="M5 19V5M5 5l-2 3M5 5l2 3M19 19V9M7 19h10"/>',
+  route: '<circle cx="6" cy="19" r="2.6"/><path d="M8.6 19h8.4a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.4"/><circle cx="18" cy="5" r="2.6"/>',
   speed: '<path d="M4 17a8 8 0 1 1 16 0M12 17l4-6"/>',
   cal: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
   navi: '<path d="M12 3l7 17-7-4-7 4z"/>',
   city: '<path d="M4 21V9l6-3v15M10 21V4l8 3v14M3 21h18M13 10h2M13 14h2M7 12h1M7 16h1"/>',
   land: '<path d="M12 3l5 8h-3l4 6H6l4-6H7zM12 17v4"/>',
-  oil: '<path d="M3 12h11v7H3zM14 14h3l4-4M6 12V9h6v3M20 15c.9 1.3 1.4 2 1.4 2.7a1.4 1.4 0 0 1-2.8 0c0-.7.5-1.4 1.4-2.7z"/>',
-  bab: '<path d="M2.5 21L8.5 3M21.5 21L15.5 3M12 3.5v3.5M12 10v4M12 17v4"/>',
-  wrench: '<path d="M14.5 6.5a4 4 0 0 0-5 5L3 18l3 3 6.5-6.5a4 4 0 0 0 5-5l-3 3-2-2z"/>',
-  tire: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
+  oil: '<path d="M2 10.5h4.2l1.8 1.2h6.5L21 8.5l-4.6 8H7.6L6 13.7H2z"/><path d="M9.5 11.7V9h3.5v2.7"/><path d="M20.6 16.2c.7 1 1 1.6 1 2.1a1 1 0 0 1-2 0c0-.5.3-1.1 1-2.1z"/>',
+  bab: '<path d="M3 4.5h18M3 8.5h18"/><path d="M9.5 8.5 4 21M14.5 8.5 20 21"/><path d="M12 11.5v2M12 16.5v3"/>',
+  wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/>',
+  tire: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
   note: '<path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7"/>',
   wind: '<path d="M3 9h11a3 3 0 1 0-3-3M3 15h14a3 3 0 1 1-3 3"/>',
+  vespa: '<circle cx="5.5" cy="17.8" r="2.3"/><circle cx="18.5" cy="17.8" r="2.3"/><path d="M5.2 15.4C6.4 11.6 7.3 8.3 7.9 5.6M6.2 5.6h3.4M8.2 15.6h5c.2-3 2.1-5.1 5-5.1h1.4c.9 0 1.4.8 1.1 1.6l-1.2 3"/><path d="M12.8 8.6h5.6"/>',
+  play: '<path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   work: '<rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2M3 13h18M11 13v1.5h2V13"/>',
   home: '<path d="M3.5 11L12 4l8.5 7M6 9.5V20h12V9.5M10 20v-5.5h4V20"/>'
 };
@@ -272,10 +276,10 @@ function stopTrip(endAt) {
   unmountDrive();
   const auto = endAt instanceof Date, end = auto ? endAt : new Date(), dur = Math.max(1, (end - new Date(rec.start)) / 1000), km = rec.m / 1000;
   const r = rec; rec = null;
-  if (r.state === 'ready') { if (r.pos) db.settings.lastPos = r.pos; save(); toast('Keine Fahrt aufgezeichnet'); return render(); }
+  if (r.state === 'ready') { if (r.pos) db.settings.lastPos = r.pos; notice('Keine Fahrt aufgezeichnet', 'Du bist nicht schneller als 10 km/h gefahren – die Aufnahme hat nicht begonnen.'); save(); return render(); }
   if (auto) { r.stop = Math.max(0, r.stop - (Date.now() - +end) / 1000); r.hist = r.hist.filter(x => x.t <= +end); }
   if (r.pos) { db.settings.lastPos = r.pos; if (km >= 0.1) db.settings.parked = { lat: r.pos.lat, lon: r.pos.lon, t: end.toISOString() }; }
-  if (km < 0.1) { save(); toast('Zu kurz – nicht gespeichert'); return render(); }
+  if (km < 0.1) { notice('Fahrt nicht gespeichert', 'Die Strecke war kürzer als 100 m (' + Math.round(km * 1000) + ' m).'); save(); return render(); }
   const pk = db.settings.pendelKm, B = 24, sp = [];
   if (r.hist.length) for (let i = 0; i < B; i++) {
     const a = Math.floor(i * r.hist.length / B), b = Math.max(a + 1, Math.floor((i + 1) * r.hist.length / B));
@@ -325,7 +329,7 @@ function dialSVG(hi) {
   <linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe8bb"/><stop offset=".2" stop-color="#d7ba87"/><stop offset=".45" stop-color="#a88e60"/><stop offset=".7" stop-color="#6a522e"/><stop offset="1" stop-color="#3e2f18"/></linearGradient><filter id="sat" x="-.1" y="-.1" width="1.2" height="1.2"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="3" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="saturate" values="0" result="g"/><feComposite in="SourceGraphic" in2="g" operator="arithmetic" k1="0" k2="1" k3=".09" k4="-.045" result="c"/><feComposite in="c" in2="SourceGraphic" operator="in"/></filter><radialGradient id="eo" gradientUnits="userSpaceOnUse" cx="170" cy="170" r="159"><stop offset="0.9836" stop-color="#000" stop-opacity="0"/><stop offset="0.9918" stop-color="#fff4d6" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient><radialGradient id="ei" gradientUnits="userSpaceOnUse" cx="170" cy="170" r="143.6"><stop offset="0.9819" stop-color="#000" stop-opacity=".5"/><stop offset="0.9909" stop-color="#fff4d6" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><g filter="url(#sat)"><circle cx="170" cy="170" r="150" fill="none" stroke="url(#gA)" stroke-width="18"/></g><circle cx="170" cy="170" r="157.7" fill="none" stroke="url(#eo)" stroke-width="2.6"/><circle cx="170" cy="170" r="142.3" fill="none" stroke="url(#ei)" stroke-width="2.6"/><circle cx="170" cy="170" r="141" fill="#050505"/><circle cx="170" cy="170" r="140.3" fill="none" stroke="#000" stroke-width="1.4"/>`;
   for (let v = 0; v < hi; v += 10) {
     const d1 = 135 + 270 * v / hi + 1.3, d2 = 135 + 270 * (v + 10) / hi - 1.3;
-    s += `<path id="sg${v}" d="${arcd(168, d1, d2)}" stroke="#1c1c1c" stroke-width="9" fill="none"/><path id="sf${v}" d="" stroke="${zcol(v)}" stroke-width="9" fill="none" filter="url(#gl)"/><path id="sa${v}" d="${arcd(176, d1, d2)}" stroke="#fff" stroke-width="2" fill="none" opacity="0"/>`;
+    s += `<path id="sg${v}" d="${arcd(170, d1, d2)}" stroke="#1c1c1c" stroke-width="12" fill="none"/><path id="sf${v}" d="" stroke="#ff3a1c" stroke-width="12" fill="none"/><path id="sa${v}" d="${arcd(179, d1, d2)}" stroke="#fff" stroke-width="2" fill="none" opacity="0"/>`;
   }
   for (let v = 0; v <= hi; v++) {
     const ang = 135 + 270 * v / hi, maj = v % 10 === 0, mid = v % 5 === 0 && !maj;
@@ -333,16 +337,17 @@ function dialSVG(hi) {
     const [x1, y1] = P(r1, ang), [x2, y2] = P(r2, ang);
     s += `<line id="tk${v}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${maj ? '#d8d8d8' : '#555'}" stroke-width="${maj ? 3.4 : mid ? 1.8 : 1}" opacity="0"/>`;
   }
-  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" display="none" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif" opacity="0">${v}</text>`; }
-  s += `<circle cx="170" cy="170" r="58" fill="none" stroke="#1c1c1c" stroke-width="1.2"/>`;
+  for (let v = 0; v <= hi; v += 20) { const [x, y] = P(92, 135 + 270 * v / hi); s += `<text id="nm${v}" x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" fill="#cfcfcf" font-size="20" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif" opacity="0">${v}</text>`; }
+  s += ``;
   for (let i = 0; i <= 60; i++) { const a = 120 - i, [x1, y1] = P(116, a), [x2, y2] = P(124, a); s += `<line id="fu${i}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#2a2a2a" stroke-width="1.1"/>`; }
   [[0, '#e0242c'], [.5, '#ddd'], [1, '#ddd']].forEach(([f, c]) => { const a = 120 - 60 * f, [x1, y1] = P(112, a), [x2, y2] = P(128, a); s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="1.6"/>`; });
   const ff = 'font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif"';
   let [ex, ey] = P(96, 115), [fx, fy] = P(96, 65);
   s += `<text x="${ex.toFixed(0)}" y="${(ey + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>E</text><text x="${fx.toFixed(0)}" y="${(fy + 4).toFixed(0)}" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}>F</text>`;
-  s += `<text id="rng" display="none" x="170" y="240" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}></text>`;
-  s += `<path id="holdR" d="" fill="none" stroke="#ff2d2d" stroke-width="18" filter="url(#gl)"/>`;
-  s += `<g id="ndl" transform="rotate(135 170 170)" opacity="0"><line x1="232" y1="170" x2="304" y2="170" stroke="rgba(255,150,30,.55)" stroke-width="11" stroke-linecap="round" filter="url(#gl)"/><line x1="232" y1="170" x2="304" y2="170" stroke="#ffbb33" stroke-width="9" stroke-linecap="round"/><line x1="232" y1="170" x2="304" y2="170" stroke="#ffe08a" stroke-width="2.5" stroke-linecap="round" opacity=".55"/></g>`;
+  s += `<text id="rng" x="170" y="240" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}></text>`;
+  s += `<path id="holdR" d="" fill="none" stroke="#ff2d2d" stroke-width="18"/>`;
+  s += `<g id="ndl" transform="rotate(135 170 170)" opacity="0"><path d="M208 163.8 L292.6 166.68 L292.6 173.32 L208 176.2Z" fill="#ffffff"/><path d="M292.6 166.68 L302 167.0 A3.0 3.0 0 0 1 302 173.0 L292.6 173.32Z" fill="#ff5a1f"/></g>`;
+  s += `<circle cx="170" cy="170" r="48" fill="#050505" stroke="#262626" stroke-width="1.2"/>`;
   s += `<text id="spd" x="170" y="188" fill="#fff" font-size="60" text-anchor="middle" letter-spacing="-1" ${ff} opacity="0">0</text><text id="kmh" x="170" y="208" fill="#8c8c8c" font-size="14" text-anchor="middle" ${ff} opacity="0">km/h</text>`;
   return s + '</svg>';
 }
@@ -363,16 +368,16 @@ function paintDial(dv, reach, avg) {
     const d1 = 135 + 270 * v / hi + 1.3, d2 = 135 + 270 * (v + 10) / hi - 1.3;
     const f = G('sf' + v), vis = v <= reach;
     const e = Math.min(d2, sa);
-    f.setAttribute('d', vis && dv > v && e > d1 ? arcd(168, d1, e) : '');
+    f.setAttribute('d', vis && dv > v && e > d1 ? arcd(170, d1, e) : '');
     G('sg' + v).setAttribute('opacity', vis ? 1 : 0);
     G('sa' + v).setAttribute('opacity', avg != null && vis && avg >= v && avg < v + 10 ? 1 : 0);
   }
   for (let v = 0; v <= hi; v++) {
     const t = G('tk' + v), vis = v <= reach;
     t.setAttribute('opacity', vis ? 1 : 0);
-    if (vis) t.setAttribute('stroke', v <= dv ? zcol(v) : (v % 10 === 0 ? '#d8d8d8' : '#555'));
+    if (vis) t.setAttribute('stroke', v <= dv ? '#ff3a1c' : (v % 10 === 0 ? '#d8d8d8' : '#555'));
   }
-  for (let v = 0; v <= hi; v += 20) { const n = G('nm' + v); n.setAttribute('opacity', v <= reach ? 1 : 0); n.setAttribute('fill', v <= dv ? zcol(v) : '#cfcfcf'); }
+  for (let v = 0; v <= hi; v += 20) { const n = G('nm' + v); n.setAttribute('opacity', v <= reach ? 1 : 0); n.setAttribute('fill', v <= dv ? '#ff3a1c' : '#cfcfcf'); }
 }
 function bez(pts) {
   if (pts.length < 2) return '';
@@ -392,10 +397,10 @@ function curveSVG(avg) {
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}">${grid(4, 28)}${grid(38, 62)}<line x1="${x0}" y1="28" x2="${x1}" y2="28" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="48" x2="${x1}" y2="48" stroke="#555" stroke-width="1"/>`;
   const sp = h.map(x => [X(x.t), yv(x.v)]), ac = h.map((x, i) => [X(x.t), ya(i ? x.v - h[i - 1].v : 0)]);
   if (sp.length > 1) {
-    s += `<path d="${bez(sp)}" fill="none" stroke="#f2f2f2" stroke-width="2.2" stroke-linejoin="round"/>`;
-    s += `<defs><clipPath id="neg"><rect x="${x0}" y="48" width="${x1 - x0}" height="16"/></clipPath></defs><path d="${bez(ac)}" fill="none" stroke="#f2c14e" stroke-width="2"/><path d="${bez(ac)}" fill="none" stroke="#4fae80" stroke-width="2.4" clip-path="url(#neg)"/>`;
+    s += `<path d="${bez(sp)}" fill="none" stroke="#efbb3c" stroke-width="2.2" stroke-linejoin="round"/>`;
+    s += `<defs><clipPath id="neg"><rect x="${x0}" y="48" width="${x1 - x0}" height="16"/></clipPath></defs><path d="${bez(ac)}" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2"/><path d="${bez(ac)}" fill="none" stroke="#4fae80" stroke-width="2.4" clip-path="url(#neg)"/>`;
   }
-  if (avg != null) s += `<line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="#f2c14e" stroke-width="1.1" stroke-dasharray="4 4"/>`;
+  if (avg != null) s += `<line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="rgba(255,255,255,.6)" stroke-width="1.1" stroke-dasharray="4 4"/>`;
   return s + `<line x1="${x1}" y1="1" x2="${x1}" y2="63" stroke="#b3202a" stroke-width="1.4"/></svg>`;
 }
 const commuteTime = () => { const d = new Date(), h = d.getHours(), wk = d.getDay() >= 1 && d.getDay() <= 5; return wk && ((h >= 5 && h < 10) || (h >= 15 && h < 20)); };
@@ -432,6 +437,7 @@ function mountDrive() {
   <img class="dlogo" src="vuelta-logo.png" alt="Vuelta">
 `;
   $('#dSvc').addEventListener('click', e => { const b = e.target.closest('.ib'); if (!b) return; const nm = b.dataset.sv, pop = $('#dPop'); clearTimeout(drv.pt); if (drv.pop === nm) { drv.pop = null; pop.hidden = true; return; } drv.pop = nm; const inf = svcInfo(nm); pop.innerHTML = `<b>${nm}</b><span>${inf ? inf.text : ''}</span>`; pop.hidden = false; drv.pt = setTimeout(() => { drv.pop = null; pop.hidden = true; }, 6000); });
+  $('#dBox').appendChild($('#dSvc'));
   buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
   const btn = $('#endBtn'), off = () => { if (drv.hold) { drv.hold = 0; drv.hs = 0; $('#endBtn').style.transform = ''; } };
   btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drv.hold = performance.now(); drv.hs = 0; hap(1); });
@@ -479,6 +485,7 @@ function driveFrame(ts) {
   const p = drv.hold ? Math.min(1, (performance.now() - drv.hold) / 2000) : 0;
   const sp = G('spd'), txt = p > 0 ? (p >= 1 ? 'ENDE' : (2 - 2 * p).toFixed(1).replace('.', ',')) : String(drv.introDone ? Math.round(target) : 0);
   if (sp.textContent !== txt) { sp.textContent = txt; const big = p > 0 || Math.round(target) >= 100; sp.setAttribute('font-size', p > 0 ? 52 : big ? 48 : 60); sp.setAttribute('y', big ? 186 : 188); sp.setAttribute('fill', p > 0 ? '#ff2d2d' : '#fff'); G('kmh').textContent = p > 0 ? 'FAHRT BEENDEN' : 'km/h'; }
+  const hide = p > 0 ? 'hidden' : 'visible'; for (let v = 0; v <= drv.hi; v += 20) { const n = G('nm' + v); if (n) n.style.visibility = hide; } const rg2 = G('rng'); if (rg2) rg2.style.visibility = hide;
   const hr = G('holdR'); if (hr) hr.setAttribute('d', p > 0.002 ? arcd(150, 135 + 270 * (1 - ease(p)), 405) : '');
   if (!p && drv.introDone && !db.settings.needle) G('ndl').setAttribute('opacity', 0);
   G('endP').setAttribute('stroke-dashoffset', 157 * (1 - p));
@@ -501,6 +508,7 @@ function driveSecond(stale) {
   let chips = `<span class="info">${ic(commuteTime() ? 'work' : 'route', 13)} ${commuteTime() ? 'Pendeln' : 'Freizeit'}</span>`;
   if (wi.wet) chips += `<span class="info">${ic('drop', 13)} Nass</span>`; else if (w) chips += `<span class="info">${ic('cloud', 13)} Trocken</span>`;
   if (ice) chips += `<span class="info">${lamp(1).replace('bald', 'Glätte')}</span>`;
+  if (w && w.wind != null) chips += `<span class="info${w.gust >= 45 ? ' gw' : ''}">${ic('wind', 13)} ${w.wind} km/h · Böen ${w.gust}</span>`;
   if (G('dChips').innerHTML !== chips) G('dChips').innerHTML = chips;
   const odo = Math.floor(currentOdo() + liveKm()), os = nf(odo, 0);
   G('oA').textContent = os;
@@ -511,8 +519,8 @@ function driveSecond(stale) {
   const ts = tankState(liveKm()), col = !ts ? '#2a2a2a' : ts.frac > .5 ? '#3a9466' : ts.frac < .25 ? '#ff7a1a' : '#f2c14e';
   for (let i = 0; i <= 60; i++) { const e = G('fu' + i); if (e) e.setAttribute('stroke', ts && i / 60 <= ts.frac ? col : '#2a2a2a'); }
   const rg = G('rng'); if (rg) { rg.textContent = ts ? '≈ ' + Math.round(ts.range) + ' km' : 'TANK ?'; rg.setAttribute('fill', ts ? col : '#8c8c8c'); rg.setAttribute('opacity', drv.introDone ? 1 : ease((performance.now() - drv.t0) / 1000 - 5.0)); }
-  ['Ölwechsel', 'Inspektion'].forEach((nm, i) => { const bt = G('dSvc').children[i], inf = svcInfo(nm); bt.style.display = inf ? '' : 'none'; if (!inf) return; bt.className = 'ib' + (inf.level === 2 ? ' e' : inf.level === 1 ? ' w' : ''); if (!bt.firstChild) bt.innerHTML = ic(i ? 'wrench' : 'oil', 22); if (drv.pop === nm) G('dPop').innerHTML = `<b>${nm}</b><span>${inf.text}</span>`; });
-  const wd = rec.weather && rec.weather.wind != null; G('dAqi').style.display = wd ? '' : 'none';
+  ['Ölwechsel', 'Inspektion'].forEach((nm, i) => { const bt = G('dSvc').children[i], inf = svcInfo(nm); bt.style.display = ''; if (!inf) { bt.className = 'ib'; if (!bt.firstChild) bt.innerHTML = ic(i ? 'wrench' : 'oil', 22); return; } bt.className = 'ib' + (inf.level === 2 ? ' e' : inf.level === 1 ? ' w' : ''); if (!bt.firstChild) bt.innerHTML = ic(i ? 'wrench' : 'oil', 22); if (drv.pop === nm) G('dPop').innerHTML = `<b>${nm}</b><span>${inf.text}</span>`; });
+  const wd = false; G('dAqi').style.display = 'none';
   if (wd) { G('dAqi').innerHTML = ic('wind', 13) + ' ' + rec.weather.wind + ' km/h · Böen ' + rec.weather.gust; G('dAqi').className = 'info' + (rec.weather.gust >= 45 ? ' gw' : ''); }
 }
 
@@ -563,19 +571,23 @@ function monthChart(ms) {
   const pts = v.map((x, i) => [X(i), Y(x)]);
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ma" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2c14e" stop-opacity=".45"/><stop offset="1" stop-color="#f2c14e" stop-opacity="0"/></linearGradient></defs>`;
   [22, 52, 82].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
-  s += `<path d="${bez(pts)} L${X(v.length - 1)} 100 L${X(0)} 100 Z" fill="url(#ma)"/><path d="${bez(pts)}" fill="none" stroke="#f2c14e" stroke-width="2.6"/>`;
-  v.forEach((x, i) => { const last = i === v.length - 1; s += `<circle cx="${X(i)}" cy="${Y(x).toFixed(1)}" r="${last ? 5 : 3.6}" fill="${last ? '#f2c14e' : '#000'}" stroke="#f2c14e" stroke-width="2"/><text x="${X(i)}" y="124" fill="${last ? '#fff' : '#8c8c8c'}" font-size="10" text-anchor="middle" letter-spacing="1">${ms[i].l}</text>`; });
-  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 10).toFixed(1)}" fill="#fff" font-size="13" text-anchor="middle">${v[v.length - 1]}</text></svg>`;
+  s += `<path d="${bez(pts)} L${X(v.length - 1)} 100 L${X(0)} 100 Z" fill="url(#ma)"/><path d="${bez(pts)}" fill="none" stroke="#f2c14e" stroke-width="2.4"/>`;
+  v.forEach((x, i) => { const last = i === v.length - 1; s += `<circle cx="${X(i)}" cy="${Y(x).toFixed(1)}" r="${last ? 3.4 : 2.2}" fill="${last ? '#0e1110' : '#f2c14e'}" stroke="#f2c14e" stroke-width="${last ? 2.4 : 0}"/><text x="${X(i)}" y="124" fill="${last ? '#fff' : '#8c8c8c'}" font-size="10" text-anchor="middle" letter-spacing="1">${ms[i].l}</text>`; });
+  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 12).toFixed(1)}" fill="#fff" font-size="13" text-anchor="middle" paint-order="stroke" stroke="#0e1110" stroke-width="4">${v[v.length - 1]}</text></svg>`;
 }
 function typeChart(ms) {
   const W = 326, H = 120, mx = Math.max(1, ...ms.flatMap(m => m.z));
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}">`;
   [14, 44, 74].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
+  const ends = [];
   [0, 1, 2].forEach(k => {
-    const pts = ms.map((m, i) => [14 + (W - 44) * i / (ms.length - 1), 92 - 82 * m.z[k] / mx]);
-    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.6"/><circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="4.5" fill="${ZCOL[k]}"/><text x="${W - 6}" y="${(pts[pts.length - 1][1] + 4).toFixed(1)}" fill="${ZCOL[k]}" font-size="11" text-anchor="end">${Math.round(ms[ms.length - 1].z[k])}</text>`;
+    const pts = ms.map((m, i) => [14 + (W - 56) * i / (ms.length - 1), 92 - 82 * m.z[k] / mx]), e = pts[pts.length - 1];
+    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.4"/><circle cx="${e[0]}" cy="${e[1].toFixed(1)}" r="3.4" fill="#0e1110" stroke="${ZCOL[k]}" stroke-width="2.4"/>`;
+    ends.push({ y: e[1], k, x: e[0] });
   });
-  ms.forEach((m, i) => s += `<text x="${14 + (W - 44) * i / (ms.length - 1)}" y="114" fill="#8c8c8c" font-size="10" text-anchor="middle" letter-spacing="1">${m.l}</text>`);
+  ends.sort((a, b) => a.y - b.y); for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
+  ends.forEach(e => s += `<text x="${e.x + 10}" y="${(e.y + 4).toFixed(1)}" fill="${ZCOL[e.k]}" font-size="11" paint-order="stroke" stroke="#0e1110" stroke-width="4" stroke-linejoin="round">${Math.round(ms[ms.length - 1].z[e.k])}</text>`);
+  ms.forEach((m, i) => s += `<text x="${14 + (W - 56) * i / (ms.length - 1)}" y="114" fill="#8c8c8c" font-size="10" text-anchor="middle" letter-spacing="1">${m.l}</text>`);
   return s + '</svg>';
 }
 
@@ -596,9 +608,9 @@ function weekLine(dd, td, avg) {
   const W = 326, H = 112, x0 = 10, x1 = 316, m = Math.max(avg || 0, ...dd, 1), X = i => x0 + i * (x1 - x0) / 6, Y = v => 92 - 78 * v / m;
   const pts = dd.slice(0, td + 1).map((v, i) => [X(i), Y(v)]);
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><line x1="${x0}" x2="${x1}" y1="92" y2="92" stroke="rgba(255,255,255,.12)"/>`;
-  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3 4"/><text x="${x1}" y="${(Y(avg) - 5).toFixed(1)}" text-anchor="end" font-size="9" fill="#9aa8a5" ${FF}>Ø ${nf(avg, 0)}</text>`;
-  if (pts.length > 1) s += `<path d="${bez(pts)}" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
-  pts.forEach((p, i) => s += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === td ? 3.6 : 2.2}" fill="${i === td ? '#efbb3c' : '#fff'}"/>`);
+  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3 4"/><text x="${x1}" y="${(Y(avg) - 7).toFixed(1)}" text-anchor="end" font-size="9" fill="#9aa8a5" paint-order="stroke" stroke="#16211f" stroke-width="4" ${FF}>Ø ${nf(avg, 0)}</text>`;
+  if (pts.length > 1) s += `<path d="${bez(pts)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  pts.forEach((p, i) => s += i === td ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="#efbb3c"/>`);
   for (let i = td + 1; i < 7; i++) s += `<circle cx="${X(i)}" cy="92" r="1.6" fill="rgba(255,255,255,.25)"/>`;
   ['M', 'D', 'M', 'D', 'F', 'S', 'S'].forEach((d, i) => s += `<text x="${X(i)}" y="108" text-anchor="middle" font-size="10" fill="${i === td ? '#efbb3c' : '#9aa8a5'}" ${FF}>${d}</text>`);
   return s + '</svg>';
@@ -612,13 +624,13 @@ function rangeChart(g, avg, unit, title) {
   [0, top / 2, top].forEach(t => s += `<line x1="${x0}" x2="${x1 + 8}" y1="${Y(t)}" y2="${Y(t)}" stroke="#2a2a2c"/><text x="${W}" y="${Y(t) + 4}" text-anchor="end" font-size="10" fill="#8e8e93" ${FF}>${nf(t, 0)}</text>`);
   g.forEach((x, i) => { const cx = x0 + (i + .5) * (x1 - x0) / n; if (x.l) s += `<line x1="${cx - (x1 - x0) / n / 2}" x2="${cx - (x1 - x0) / n / 2}" y1="8" y2="${H - 4}" stroke="#2a2a2c" stroke-dasharray="2 3"/><text x="${cx - (x1 - x0) / n / 2 + 3}" y="${H - 2}" font-size="10" fill="#8e8e93" ${FF}>${x.l}</text>`;
     if (x.hi > 0) s += `<rect x="${cx - bw / 2}" y="${Y(x.hi)}" width="${bw}" height="${Math.max(bw, Y(x.lo) - Y(x.hi))}" rx="${bw / 2}" fill="#3a3a3c"/>`; });
-  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#efbb3c" stroke-width="3.2" stroke-linecap="round"/><text x="${x1}" y="${Y(avg) - 7}" text-anchor="end" font-size="13" font-weight="600" fill="#efbb3c" ${FF}>${nf(avg, 0)} ${unit}</text>`;
+  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round"/><text x="${x1}" y="${Y(avg) - 9}" text-anchor="end" font-size="13" font-weight="600" fill="#efbb3c" paint-order="stroke" stroke="#0e1110" stroke-width="4" stroke-linejoin="round" ${FF}>${nf(avg, 0)} ${unit}</text>`;
   return s + '</svg>';
 }
 const wkGroups = (ts, f, nW = 8) => { const out = []; for (let i = nW - 1; i >= 0; i--) { const a = weekStart(i), b = new Date(+a + 7 * 864e5), xs = ts.filter(t => { const d = new Date(t.start); return d >= a && d < b; }).map(f).filter(x => x != null); out.push({ lo: xs.length ? Math.min(...xs) : 0, hi: xs.length ? Math.max(...xs) : 0, l: a.getDate() <= 7 ? MO[a.getMonth()].charAt(0) + MO[a.getMonth()].slice(1, 3).toLowerCase() : '' }); } return out; };
 function ring(frac, col, sz = 64) {
   const r = sz / 2 - 6, c = 2 * Math.PI * r;
-  return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="3.5"/><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${(c * Math.max(.02, frac)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${sz / 2} ${sz / 2})"/><circle cx="${(sz / 2 + r * Math.sin(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" cy="${(sz / 2 - r * Math.cos(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" r="3" fill="#0e1110" stroke="${col}" stroke-width="1.8"/></svg>`;
+  return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2.4"/><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="${(c * Math.max(.02, frac)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${sz / 2} ${sz / 2})"/><circle cx="${(sz / 2 + r * Math.sin(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" cy="${(sz / 2 - r * Math.cos(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" r="3.4" fill="#0e1110" stroke="${col}" stroke-width="2.4"/></svg>`;
 }
 function cmpBars(a, b, la, lb) {
   const m = Math.max(a, b, 1);
@@ -648,12 +660,12 @@ function zoneCols(ts) {
   return s + '</svg>';
 }
 function lineChart(vals, labels, u) {
-  const W = 326, H = 120, x0 = 8, x1 = 300; if (vals.length < 2) return '<p class="mu">Ab zwei vollen Tankungen sichtbar.</p>';
+  const W = 326, H = 120, x0 = 8, x1 = 282; if (vals.length < 2) return '<p class="mu">Ab zwei vollen Tankungen sichtbar.</p>';
   const lo = Math.min(...vals) * .9, hi = Math.max(...vals) * 1.1, X = i => x0 + i * (x1 - x0) / (vals.length - 1), Y = v => 100 - (v - lo) / ((hi - lo) || 1) * 88;
   const pts = vals.map((v, i) => [X(i), Y(v)]);
-  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><path d="${bez(pts)}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>`;
-  pts.forEach((p, i) => s += `<circle cx="${p[0]}" cy="${p[1]}" r="${i === pts.length - 1 ? 4 : 2.6}" fill="${i === pts.length - 1 ? '#efbb3c' : '#fff'}"/>`);
-  s += `<text x="${W}" y="${Y(vals[vals.length - 1]) + 4}" text-anchor="end" font-size="11" fill="#efbb3c" ${FF}>${nf(vals[vals.length - 1], 1)}${u || ''}</text>`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><path d="${bez(pts)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round"/>`;
+  pts.forEach((p, i) => s += i === pts.length - 1 ? `<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0]}" cy="${p[1]}" r="2.2" fill="#efbb3c"/>`);
+  s += `<text x="${x1 + 10}" y="${Y(vals[vals.length - 1]) + 4}" font-size="11" fill="#efbb3c" paint-order="stroke" stroke="#0e1110" stroke-width="4" stroke-linejoin="round" ${FF}>${nf(vals[vals.length - 1], 1)}${u || ''}</text>`;
   if (labels) labels.forEach((l, i) => { if (i === 0 || i === labels.length - 1) s += `<text x="${X(i)}" y="116" text-anchor="${i ? 'end' : 'start'}" font-size="9" fill="#8e8e93" ${FF}>${l}</text>`; });
   return s + '</svg>';
 }
@@ -680,19 +692,22 @@ const HDR = '<div class="hdr"><img src="vuelta-logo.png" alt="Vuelta"></div><div
 function miniCurve(a, w, h) {
   if (a.length < 2) a = [0, ...a];
   const m = Math.max(1, ...a), pts = a.map((x, i) => [4 + i * (w - 8) / (a.length - 1), h - 4 - (h - 10) * x / m]);
-  let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${bez(pts)}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
-  pts.forEach((p, i) => s += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === pts.length - 1 ? 3.2 : 2.2}" fill="${i === pts.length - 1 ? '#efbb3c' : '#fff'}"/>`);
+  let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${bez(pts)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  pts.forEach((p, i) => s += i === pts.length - 1 ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="#efbb3c"/>`);
   return s + '</svg>';
 }
 const daysAgo = s => s ? (Date.now() - new Date(s)) / 864e5 : 1e9;
 const icn = n => /öl/i.test(n) ? 'oil' : /insp/i.test(n) ? 'wrench' : /hu|tüv/i.test(n) ? 'note' : /reif/i.test(n) ? 'tire' : /variator|riemen/i.test(n) ? 'bolt' : 'wrench';
 const remCard = (r, s2) => `<div class="card rem">${kh(icn(r.name), esc(r.name), lamp(s2.level))}<div class="rt">${esc(s2.text)}</div><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="editrem" data-id="${r.id}">Bearbeiten</button><button class="ghost lnk" data-a="donerem" data-id="${r.id}">Erledigt</button></div></div>`;
+/* Wichtige Hinweise: eigene Kachel ganz oben, bleibt bis zum Wegtippen (max. 12 h) */
+function notice(t, d) { db.settings.notice = { t, d, at: new Date().toISOString() }; save(); hap(2); }
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
   fetchForecast();
   const odo = currentOdo(), due = db.reminders.map(r => ({ r, s: reminderStatus(r) })).filter(x => x.s.level > 0), ts = tankState(), pk = db.settings.parked;
   let h = '';
+  const nt = db.settings.notice; if (nt && daysAgo(nt.at) < .5) h += `<div class="card note">${kh('note', esc(nt.t), fmtTime(nt.at))}<div class="rt">${esc(nt.d)}</div><div class="r" style="margin-top:10px"><span></span><button class="ghost lnk" data-a="dismiss">Ok</button></div></div>`;
   (fc ? fc.warns : []).forEach(w => h += `<div class="card wx">${kh(w.icon, esc(w.t), lamp(1).replace('bald', 'Achtung'))}<div class="rt">${esc(w.d)}</div></div>`);
   if (daysAgo(db.settings.odoCheck || db.settings.odoDate) > 30) h += `<button class="actb" data-a="odophoto"><span>Kilometerstand abgleichen</span>${ic('speed', 17)}</button>`;
   if (db.trips.length && daysAgo(db.settings.lastBackup) > 7) h += `<button class="actb" data-a="export"><span>Daten sichern <small>· ${db.settings.lastBackup ? 'vor ' + Math.floor(daysAgo(db.settings.lastBackup)) + ' Tagen' : 'nie gesichert'}</small></span>${ic('note', 17)}</button>`;
@@ -843,10 +858,10 @@ function tripCurve(ser, avg, dur) {
   const sp = ser.map((v, i) => [X(i), yv(v)]), as = ac.map((v, i) => [X(i), ya(v)]), mi = ser.indexOf(Math.max(...ser));
   const lab = s => { const m = Math.round(s / 60); return m + ' min'; };
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs><clipPath id="tneg"><rect x="${x0}" y="140" width="${x1 - x0}" height="30"/></clipPath></defs>${g}<line x1="${x0}" y1="98" x2="${x1}" y2="98" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="140" x2="${x1}" y2="140" stroke="#555"/>
-  <path d="${bez(sp)}" fill="none" stroke="#f2f2f2" stroke-width="2.6" stroke-linejoin="round"/>
-  <line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="#f2c14e" stroke-width="1.2" stroke-dasharray="5 4"/>
-  <circle cx="${X(mi).toFixed(1)}" cy="${yv(ser[mi]).toFixed(1)}" r="3.6" fill="#f2c14e"/>
-  <path d="${bez(as)}" fill="none" stroke="#f2c14e" stroke-width="2"/><path d="${bez(as)}" fill="none" stroke="#4fae80" stroke-width="2.4" clip-path="url(#tneg)"/>
+  <path d="${bez(sp)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linejoin="round"/>
+  <line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="rgba(255,255,255,.6)" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <circle cx="${X(mi).toFixed(1)}" cy="${yv(ser[mi]).toFixed(1)}" r="3.4" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>
+  <path d="${bez(as)}" fill="none" stroke="#8e8e93" stroke-width="2"/><path d="${bez(as)}" fill="none" stroke="#4fae80" stroke-width="2.4" clip-path="url(#tneg)"/>
   <text x="${x0}" y="${H - 1}" font-size="9" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">0</text><text x="${x1}" y="${H - 1}" text-anchor="end" font-size="9" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">${lab(dur)}</text></svg>`;
 }
 function viewTrip() {
@@ -884,7 +899,7 @@ function viewLogbuch() {
     if (l.type === 'service') { d = esc(l.text); right = l.eur ? nf(l.eur, 2) + ' €' : ''; }
     if (l.type === 'reifen') d = `vorne ${nf(l.front, 1)} bar · hinten ${nf(l.rear, 1)} bar`;
     if (l.type === 'notiz') d = esc(l.text);
-    return `<div class="card">${kh(LT[l.type][1], LT[l.type][0], fmtDate(l.date) + (l.odo ? ' · ' + nf(l.odo, 0) + ' km' : ''))}<div class="r"><b style="font-size:22px">${right}</b></div><div style="margin-top:6px;font-size:14px;letter-spacing:.04em">${d}</div><div style="text-align:right"><button class="ghost" style="font-size:11px;letter-spacing:.14em" data-a="dellog" data-id="${l.id}">LÖSCHEN</button></div></div>`;
+    return `<div class="card">${kh(LT[l.type][1], LT[l.type][0], fmtDate(l.date) + (l.odo ? ' · ' + nf(l.odo, 0) + ' km' : ''))}<div class="r"><b style="font-size:22px">${right}</b></div><div style="margin-top:6px;font-size:14px;letter-spacing:.04em">${d}</div><div style="text-align:right"><button class="ghost" style="font-size:11px;letter-spacing:.14em" data-a="dellog" data-id="${l.id}">Löschen</button></div></div>`;
   }).join('') : '<p class="mu">Noch keine Einträge.</p>'}`;
 }
 function viewMehr() {
@@ -923,17 +938,20 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 12 · 19.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 13 · 19.11.2026</p>`;
 }
 function dockHTML() {
+  /* Wie Fotos: links Gruppe, rechts eine Hauptaktion */
+  const row = (left, a, label, icon, cls = '') => `<div class="drow">${left || '<span></span>'}<button class="cta ${cls}" data-a="${a}">${ic(icon, 18)}<span>${label}</span></button></div>`;
+  const back = row('', 'back', 'Zurück', 'back', 'sec2');
   if (tab === 'fahrt') {
-    if (sub === 'finden') return `<button class="cta" data-a="back">Zurück</button>`;
-    if (sub === 'tanken') return stations && stations.list && stations.list.length ? `<button class="cta" data-a="route" data-i="0">Route zu Station 1</button>` : `<button class="cta" data-a="back">Zurück</button>`;
-    return `<div class="navrow"><button class="pill" data-a="navwork">${ic('work', 16)} Arbeit</button><button class="pill" data-a="navhome">${ic('home', 16)} Zuhause</button></div><button class="cta" data-a="start">Fahrt starten</button>`;
+    if (sub === 'finden') return back;
+    if (sub === 'tanken') return stations && stations.list && stations.list.length ? row(`<div class="grp"><button data-a="back">${ic('back', 18)}<span>Zurück</span></button></div>`, 'route', 'Route', 'navi') : back;
+    return row(`<div class="grp"><button data-a="navwork">${ic('work', 18)}<span>Arbeit</span></button><button data-a="navhome">${ic('home', 18)}<span>Zuhause</span></button></div>`, 'start', 'Starten', 'vespa', 'go');
   }
-  if (tab === 'fahrten' && sub === 'trip') return `<button class="cta" data-a="back">Zurück</button>`;
-  if (tab === 'fahrten') return `<button class="cta" data-a="manualtrip">+ Fahrt nachtragen</button>`;
-  if (tab === 'logbuch') return `<button class="cta" data-a="chooser">+ Eintrag</button>`;
+  if (tab === 'fahrten' && sub === 'trip') return back;
+  if (tab === 'fahrten') return row('', 'manualtrip', 'Nachtragen', 'plus');
+  if (tab === 'logbuch') return row('', 'chooser', 'Eintrag', 'plus');
   return '';
 }
 const ORD = ['fahrt', 'fahrten', 'logbuch', 'mehr']; let sliding = false;
@@ -1004,6 +1022,7 @@ const actions = {
   finden() { sub = 'finden'; render(); },
   back() { sub = null; render(); },
   opentrip(el) { tripSel = el.dataset.id; sub = 'trip'; render(); window.scrollTo(0, 0); },
+  dismiss() { db.settings.notice = null; save(); render(); },
   lasttrip(el) { tab = 'fahrten'; tripSel = el.dataset.id; sub = 'trip'; render(); window.scrollTo(0, 0); },
   odophoto() { const i = $('#odoimg') || Object.assign(document.body.appendChild(document.createElement('input')), { type: 'file', id: 'odoimg', accept: 'image/*', hidden: true }); i.setAttribute('capture', 'environment'); i.value = ''; i.click(); },
   duesel(el) { dueSel = dueSel === el.dataset.id ? null : el.dataset.id; render(); },
@@ -1106,7 +1125,8 @@ function init() {
   document.body.insertAdjacentHTML('beforeend', '<div id="topblur"></div>');
   /* Hauptbutton wird beim Scrollen zu Glas */
   const lg = $('#hdrbox img');
-  const onSc = () => { const y = window.scrollY; document.body.classList.toggle('scrolled', y > 8); document.body.classList.toggle('scr2', y > 30); if (lg) { lg.style.filter = `blur(${Math.min(10, y / 10).toFixed(1)}px)`; lg.style.opacity = Math.max(.25, 1 - y / 220).toFixed(2); } }; window.addEventListener('scroll', onSc, { passive: true }); window.addEventListener('resize', moveInd);
+  const onSc = () => { const y = window.scrollY, was = document.body.classList.contains('scrolled'); document.body.classList.toggle('scrolled', y > 8); if (was !== (y > 8)) { moveInd(); setTimeout(moveInd, 160); setTimeout(moveInd, 340); } document.body.classList.toggle('scr2', y > 30); if (lg) { lg.style.filter = `blur(${Math.min(10, y / 10).toFixed(1)}px)`; lg.style.opacity = Math.max(.25, 1 - y / 220).toFixed(2); } }; window.addEventListener('scroll', onSc, { passive: true }); window.addEventListener('resize', moveInd); $('#tabs').addEventListener('transitionend', moveInd);
+  document.querySelectorAll('#tabs button').forEach(b => { const t = b.textContent.trim(); b.innerHTML = '<span>' + t + '</span>'; });
   const TI = { fahrt: 'speed', fahrten: 'route', logbuch: 'note' };
   document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', TI[b.dataset.t] ? ic(TI[b.dataset.t], 20) : '<svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'));
   /* Wischen zwischen den Seiten: Inhalt folgt dem Finger (nur Mitte, nicht im Fahrmodus) */

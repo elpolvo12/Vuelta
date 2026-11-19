@@ -424,3 +424,114 @@ section.grp>.sec{background:none!important;-webkit-backdrop-filter:none!importan
 /* Endpunkt kleiner */
 .cmp i::after,.zr u::after,.t.tk .tb u::after,.zb i:last-child::after,.zl i:last-child::after{width:8px!important;height:8px!important;margin-top:-4px!important;right:-4px!important;-webkit-mask:radial-gradient(circle,transparent 1.8px,#000 2.3px)!important;mask:radial-gradient(circle,transparent 1.8px,#000 2.3px)!important}
 .cmp i::before,.zr u::before,.t.tk .tb u::before,.zb i:last-child::before,.zl i:last-child::before{width:4px;height:4px;margin-top:-2px;right:-2px}
+/* ===== Fahrmodus-Korrektur ===== */
+#drive{padding-bottom:calc(84px + env(safe-area-inset-bottom))!important}
+#drive .chrow{margin:6px 4px 0}
+#drive .chips{flex-wrap:wrap;row-gap:4px}
+#drive .chips .info{font-size:13px;color:#c7c7cc}
+#drive .chips .info.gw{color:var(--o)}
+/* Öl & Inspektion als Kontrollleuchten oben links/rechts am Tacho */
+#dBox{position:relative}
+#dBox .svc{position:absolute;top:2px;left:6px;right:6px;display:flex;justify-content:space-between;pointer-events:none;z-index:3}
+#dBox .svc .ib{pointer-events:auto;width:46px;height:40px;border-radius:999px!important}
+#dBox .svc .ib svg{opacity:.28}
+#dBox .svc .ib.w{box-shadow:0 0 14px rgba(255,122,26,.55),inset 0 0 0 1.5px var(--o)!important}#dBox .svc .ib.w svg{opacity:1;stroke:var(--o)}
+#dBox .svc .ib.e{box-shadow:0 0 16px rgba(255,45,45,.65),inset 0 0 0 1.5px var(--r)!important}#dBox .svc .ib.e svg{opacity:1;stroke:#ff2d2d}
+/* Logo halb so groß, ganz links; Stopp unten rechts ohne Text */
+#drive .dlogo{width:60px!important;left:18px!important;right:auto!important;margin:0!important;bottom:calc(30px + env(safe-area-inset-bottom))!important}
+#drive .endb{left:auto!important;right:18px!important;margin:0!important;bottom:calc(16px + env(safe-area-inset-bottom))!important}
+#drive .endb small{display:none}
+#endBtn{width:54px!important;height:54px!important}#endBtn svg:not(.haz){width:54px!important;height:54px!important}
+/* Fahrmodus: Feinschliff */
+#drive .dlogo{width:78px!important}
+#drive .dialbox{margin-top:18px!important}
+#drive .mid{grid-template-columns:1.35fr 1fr!important;gap:10px!important;margin-top:14px!important}
+#drive .mid .tiles{gap:10px!important}
+#drive .mid .tiles div{height:72px;padding:0 10px!important;display:flex!important;align-items:baseline!important;justify-content:center!important;align-content:center;flex-wrap:wrap;gap:4px!important}
+#drive .mid .tiles div{align-items:center!important}
+#drive .mid .tiles b{font-size:28px!important;font-weight:500;line-height:1}
+#drive .mid .tiles span{font-size:12px!important;letter-spacing:.04em!important;color:#a8a8ae;text-transform:none!important;align-self:flex-end;margin-bottom:3px}
+#drive .mid .tiles svg{width:18px;height:18px;align-self:center}
+#drive .mid .cv{padding:10px 10px 6px!important}
+#drive .mid .ch{padding:0 2px!important;align-items:center!important}
+#drive .mid .ch span{font-size:11px!important;letter-spacing:.06em!important;color:#a8a8ae}
+#drive .mid .ch b{font-size:20px!important}#drive .mid .ch #dAvg{font-size:20px!important}
+#drive .foot{margin-top:6px!important}
+#drive .foot #oA{font-size:30px!important}
+#drive .mid .tiles div{flex-wrap:nowrap!important;align-items:baseline!important}#drive .mid .tiles svg{align-self:center!important;margin-right:2px}#drive .mid .tiles b{font-size:27px!important}
+#drive .mid{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)!important}#drive .mid .tiles{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}#drive .mid .tiles div{align-items:center!important;justify-content:center!important;min-width:0}#drive .mid .tiles span{align-self:center!important;margin:8px 0 0!important}#drive .mid .tiles b{font-size:25px!important}
+#drive .mid .tiles svg{flex:none;display:block}#drive .mid .tiles div{gap:3px!important;overflow:visible}
+/* Endkreise nie bei Balken */
+.cmp i::after,.zr u::after,.t.tk .tb u::after,.zb i:last-child::after,.zl i:last-child::after,.cmp i::before,.zr u::before,.t.tk .tb u::before,.zb i:last-child::before,.zl i:last-child::before{display:none!important}
+/* Balken so dünn wie Linien */
+.cmp i{height:3px!important;border-radius:2px!important}
+.zr i{height:3px!important}.zb{height:3px!important}.zl{height:3px!important;gap:3px}
+.zl i,.zb i{border-radius:2px}
+.card.note{box-shadow:inset 0 2px 8px rgba(255,255,255,.12),inset 0 0 0 1px rgba(255,122,26,.35),0 4px 14px rgba(0,0,0,.3)!important}.card.note .kh svg{stroke:var(--o)}
+/* Abstand Linie ↔ Wert */
+.cmp div{gap:14px!important}
+.zr{gap:14px!important}
+.zr b{min-width:70px!important}
+/* Kontrollleuchten im Fahrmodus: von innen beleuchtet wie die Lampen */
+#dBox .svc .ib.w{background:radial-gradient(120% 140% at 50% 30%,#ffb35c,#ff7a1a 60%,#c4520a)!important;box-shadow:0 0 10px rgba(255,122,26,.75),0 0 22px rgba(255,122,26,.35),inset 0 1px 0 rgba(255,255,255,.45)!important}
+#dBox .svc .ib.e{background:radial-gradient(120% 140% at 50% 30%,#ff7a7a,#ff2d2d 60%,#b80d0d)!important;box-shadow:0 0 12px rgba(255,45,45,.85),0 0 26px rgba(255,45,45,.4),inset 0 1px 0 rgba(255,255,255,.4)!important}
+#dBox .svc .ib.w svg,#dBox .svc .ib.e svg{opacity:1!important;stroke:#2a0a00!important}
+/* Fahrmodus-Leuchten: nur das Icon, farbig */
+#dBox .svc .ib,#dBox .svc .ib.w,#dBox .svc .ib.e{background:none!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;width:48px;height:44px}
+#dBox .svc .ib svg{width:34px!important;height:34px!important;opacity:.22;stroke:#fff}
+#dBox .svc .ib.w svg{opacity:1!important;stroke:#ff8a1f!important}
+#dBox .svc .ib.e svg{opacity:1!important;stroke:#ff2d2d!important}
+#dBox .svc .ib[data-sv="Inspektion"] svg{width:27px!important;height:27px!important}
+.vst{height:79px!important;left:calc(100% - 66px)!important}
+#hdrbox{padding-left:26px!important}
+/* Navigation: weiche Glaskante */
+#tabs{border:0!important;box-shadow:0 10px 28px rgba(0,0,0,.55),inset 0 2px 9px rgba(255,255,255,.14),inset 0 0 18px rgba(255,255,255,.05)!important}
+#tabs .ind{border:0!important;box-shadow:inset 0 2px 8px rgba(255,240,200,.45),inset 0 0 14px rgba(248,227,176,.25),0 0 16px rgba(201,169,107,.25)!important}
+/* ===== Dock wie Fotos ===== */
+#dock{left:18px!important;right:18px!important;padding:0!important;bottom:calc(84px + env(safe-area-inset-bottom))!important;display:block!important}
+.drow{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.drow .grp{display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(30,32,32,.5);-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);box-shadow:0 8px 22px rgba(0,0,0,.45),inset 0 2px 9px rgba(255,255,255,.14),inset 0 0 18px rgba(255,255,255,.05)}
+.drow .grp button{display:flex;align-items:center;gap:7px;height:40px;padding:0 14px;border-radius:999px;color:#fff;font-size:15px;font-weight:600;transition:padding .3s,height .3s}
+.drow .grp button:active{background:rgba(255,255,255,.08)}
+.drow .cta{width:auto!important;height:48px!important;padding:0 20px 0 16px;gap:8px!important;border-radius:999px!important;font-size:16px!important;box-shadow:0 8px 22px rgba(0,0,0,.45),inset 0 2px 8px rgba(255,255,255,.35)!important;transition:height .3s,padding .3s,width .3s}
+.drow .cta svg{stroke:#000}
+.drow .cta.go{background:#ff3a1c!important;color:#fff!important}.drow .cta.go svg{fill:#fff;stroke:#fff}
+.drow .cta.sec2{background:rgba(30,32,32,.55)!important;color:#fff!important;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}.drow .cta.sec2 svg{stroke:#fff}
+body.scrolled .drow .cta.go{background:#ff3a1c!important;color:#fff!important;border-color:transparent!important}
+body.scrolled .drow .cta:not(.go):not(.sec2){background:var(--y)!important;color:#000!important}
+/* Beim Scrollen: kleiner, nur Icons */
+.drow span,#tabs button span{transition:opacity .2s,max-width .3s;max-width:120px;overflow:hidden;white-space:nowrap}
+body.scrolled .drow span,body.scrolled #tabs button span{opacity:0;max-width:0}
+body.scrolled .drow .cta{height:44px!important;padding:0 13px!important;gap:0!important}
+body.scrolled .drow .grp button{height:36px;padding:0 11px;gap:0}
+#tabs{transition:height .3s,left .3s,right .3s,bottom .3s}
+body.scrolled #tabs{height:50px!important;left:60px!important;right:60px!important}
+body.scrolled #tabs button{gap:0}
+body.scrolled #dock{bottom:calc(76px + env(safe-area-inset-bottom))!important}
+body::after{height:calc(130px + env(safe-area-inset-bottom))!important}
+/* Alles glasig: auch Hauptbuttons */
+.drow .cta,.cta{background:rgba(239,187,60,.62)!important;color:#1a1204!important;-webkit-backdrop-filter:blur(18px) saturate(180%)!important;backdrop-filter:blur(18px) saturate(180%)!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 2px 9px rgba(255,248,220,.55),inset 0 0 16px rgba(255,240,200,.18)!important;border:0!important}
+.drow .cta.go,body.scrolled .drow .cta.go{background:rgba(255,58,28,.66)!important;color:#fff!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 2px 9px rgba(255,210,190,.55),inset 0 0 16px rgba(255,180,150,.2)!important}
+.drow .cta.go svg{fill:none!important;stroke:#fff!important;stroke-width:1.8}
+body.scrolled .drow .cta:not(.go):not(.sec2){background:rgba(239,187,60,.5)!important;color:#1a1204!important}
+.sm.pri,.sheet-body button.pri{background:rgba(239,187,60,.66)!important;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:inset 0 2px 8px rgba(255,248,220,.55)!important}
+.actb{background:linear-gradient(160deg,rgba(227,198,144,.78),rgba(168,142,96,.72))!important;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 2px 8px rgba(255,248,225,.5)!important}
+.drow .cta svg{width:21px;height:21px}
+.vst{height:63px!important}
+.vst i,.vst u{border-radius:0 0 5px 5px}
+/* Glas: Rand dezenter, Farben heller */
+.drow .cta,.cta,body.scrolled .drow .cta:not(.go):not(.sec2){background:rgba(255,212,84,.74)!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1.5px 5px rgba(255,250,230,.28),inset 0 0 12px rgba(255,245,210,.08)!important}
+.drow .cta.go,body.scrolled .drow .cta.go{background:rgba(255,92,48,.78)!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1.5px 5px rgba(255,225,210,.28),inset 0 0 12px rgba(255,200,180,.08)!important}
+.sm.pri,.sheet-body button.pri{background:rgba(255,212,84,.76)!important;box-shadow:inset 0 1.5px 5px rgba(255,250,230,.28)!important}
+.card,.t:not(.hero),#drive .tiles div,#drive .cv{box-shadow:inset 0 2px 7px rgba(255,255,255,.065),inset 0 0 16px rgba(255,255,255,.03),0 4px 14px rgba(0,0,0,.3)!important}
+.t.hero{box-shadow:inset 0 2px 8px rgba(220,240,234,.09),inset 0 0 18px rgba(200,230,222,.04),0 6px 16px rgba(0,0,0,.35)!important}
+.pill,.c,.sm:not(.pri),.navrow .pill,.ib2,#drive .ib,#drive .c,.sheet-body button:not(.pri),#endBtn,.drow .grp{box-shadow:inset 0 2px 6px rgba(255,255,255,.08),inset 0 0 12px rgba(255,255,255,.03),0 2px 8px rgba(0,0,0,.3)!important}
+#tabs{box-shadow:0 10px 28px rgba(0,0,0,.55),inset 0 2px 8px rgba(255,255,255,.09),inset 0 0 16px rgba(255,255,255,.03)!important}
+#tabs .ind{box-shadow:inset 0 2px 7px rgba(255,240,200,.28),inset 0 0 12px rgba(248,227,176,.14)!important}
+.actb{box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 1.5px 5px rgba(255,248,225,.28)!important}
+.drow .cta,.cta,body.scrolled .drow .cta:not(.go):not(.sec2){background:rgba(255,214,90,.9)!important}
+.drow .cta.go,body.scrolled .drow .cta.go{background:rgba(255,96,52,.9)!important}
+.sm.pri,.sheet-body button.pri{background:rgba(255,214,90,.9)!important}
+.vst i,.vst u{border-radius:0!important}
+.vst u{border-bottom-left-radius:5px!important}
+.vst i:last-child{border-bottom-right-radius:5px!important}
