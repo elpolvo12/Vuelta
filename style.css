@@ -668,3 +668,18 @@ body::before{filter:blur(18px);transform:scale(1.08)}
 @keyframes anIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 #view .an-in{animation:anIn .45s cubic-bezier(.3,.7,.2,1) both}
 @media (prefers-reduced-motion:reduce){#view .an-in{animation:none}}
+/* v16: Analyse wie Schlafanalyse */
+.stg .sgp{display:flex;gap:4px;padding:3px;border-radius:999px;background:rgba(255,255,255,.06);width:max-content;max-width:100%;overflow-x:auto;margin:6px 0 12px}
+.stg .sgp button{font-size:12.5px;font-weight:600;color:#a8a8ae;padding:5px 11px;border-radius:999px;background:none;border:0;white-space:nowrap}
+.stg .sgp button.on{color:#fff;background:linear-gradient(180deg,rgba(168,142,96,.55),rgba(168,142,96,.25));box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+.stg .big{display:flex;align-items:baseline;gap:6px;margin:4px 0 6px}.stg .big b{font-size:34px;font-weight:500;color:#fff}.stg .big small{font-size:14px;color:#a8a8ae;text-transform:none;letter-spacing:0}
+.stg .rows{margin-top:10px;border-top:.5px solid rgba(255,255,255,.08)}
+.stg .rw{display:grid;grid-template-columns:96px 1fr 50px;align-items:center;gap:8px;padding:8px 0;border-bottom:.5px solid rgba(255,255,255,.08)}
+.stg .rw:last-child{border-bottom:0}
+.stg .rn{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stg .rtm{text-align:right;font-size:15px;font-weight:600;color:#fff}
+.stg .rw svg{width:100%;display:block}
+/* v16: Tacho-Ringe an der Ampel */
+#dsv.rm [id^="sg"],#dsv.rm [id^="sf"],#dsv.rm [id^="sa"],#dsv.rm [id^="nm"],#dsv.rm [id^="fu"],#dsv.rm #ndl,#dsv.rm #spd,#dsv.rm #kmh,#dsv.rm #rng,#dsv.rm #holdR,#dsv.rm > g:not(#rgx):not(#ndl),#dsv.rm > circle[r="48"],#dsv.rm > line:not([id]),#dsv.rm > text:not([id]),#dsv.rm > circle[r="157.7"],#dsv.rm > circle[r="142.3"]{display:none}
+#dsv.rm [id^="tk"]{stroke:#555!important}#dsv.rm [id^="tk"][stroke-width="3.4"]{stroke:#cfcfcf!important}#dsv.rm [id^="tk"][stroke-width="1.8"]{stroke:#9a9a9a!important}
+#rgx{animation:anIn .35s ease both}

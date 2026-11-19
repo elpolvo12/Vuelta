@@ -211,6 +211,7 @@ let stations = null;
 async function fetchStations() {
   const k = db.settings.tkKey;
   if (!k) { stations = { err: 'key' }; return; }
+  if (fetchStations.at && Date.now() - fetchStations.at < 60e3 && stations && stations.list) { render(); return; } fetchStations.at = Date.now();
   if (fetchStations.last && Date.now() - fetchStations.last < 60e3 && stations && stations.list) return; fetchStations.last = Date.now();
   stations = { loading: true }; render();
   const pos = await new Promise(res => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lon: p.coords.longitude }), () => res(null), { timeout: 8000, maximumAge: 60000 }) : res(null));
@@ -543,7 +544,55 @@ function driveFrame(ts) {
   if (p >= 1) { drv.hold = 0; hap(3); stopTrip(); return; }
   if (ts - drv.sec >= 1000) { drv.sec = ts; driveSecond(stale); }
 }
+/* Tacho an der Ampel: Ringe mit heute (weiß, außen), Bestzeit (gold, Rahmen) und weiteren Routen (fein) */
+function refTime(t, km) { /* Zeit (s) und Stand (s), bis eine frühere Fahrt km erreicht hatte */
+  const S = t.ser || []; if (S.length < 6) return null; const dt = t.dur / S.length; let d = 0, st = 0, sum = S.reduce((a, v) => a + v, 0) * dt / 3600 || 1; const k = t.km / sum;
+  for (let i = 0; i < S.length; i++) { const dd = S[i] * dt / 3600 * k; if (S[i] < 1) st += dt; if (d + dd >= km) return { t: i * dt + (dd ? (km - d) / dd * dt : 0), st }; d += dd; }
+  return { t: t.dur, st };
+}
+let rg = null;
+function ringGeo() {
+  const sv = G('dsv'); if (!sv) return null; if (rg && rg.sv === sv) return rg;
+  const c = [...sv.children].find(e => e.tagName === 'circle'), cx = +c.getAttribute('cx'), cy = +c.getAttribute('cy');
+  const pt = (d, last) => { const n = d.match(/-?[\d.]+/g).map(Number); return last ? [n[n.length - 2], n[n.length - 1]] : [n[0], n[1]]; };
+  const s0 = pt(G('sg0').getAttribute('d')), s1 = pt(G('sg90').getAttribute('d'), 1);
+  const a0 = Math.atan2(s0[1] - cy, s0[0] - cx); let a1 = Math.atan2(s1[1] - cy, s1[0] - cx); while (a1 <= a0) a1 += 2 * Math.PI;
+  const nm = G('nm20'); let rN = 112; try { const b = nm.getBBox(); if (b.width > 0) rN = Math.hypot(b.x + b.width / 2 - cx, b.y + b.height / 2 - cy); } catch (e) { }
+  rg = { sv, cx, cy, a0, span: a1 - a0, rN }; return rg;
+}
+function ringTick() {
+  const sv = G('dsv'); if (!sv || !rec) return;
+  const still = rec.state !== 'ready' && rec.stillSince && Date.now() - rec.stillSince >= 3000;
+  const dir = still && db.settings.home && db.settings.work && rec.route.length > 3 ? commuteDir({ route: rec.route }) : null;
+  const V = dir ? routeVariants().filter(v => v.dir === dir).sort((x, y) => x.m - y.m).slice(0, 3) : [];
+  const km = rec.m / 1000, E = (Date.now() - new Date(rec.start)) / 1000;
+  const R = V.map(v => { const t = v.trips.filter(t => t.ser && t.ser.length > 5).sort((a, b) => Math.abs(a.dur / 60 - v.m) - Math.abs(b.dur / 60 - v.m))[0]; const r = t && refTime(t, km); return r ? { v, r, end: v.m * 60 } : null; }).filter(Boolean);
+  const on = still && R.length && km > .3;
+  if (on && !sv.classList.contains('rm')) ringGeo();
+  sv.classList.toggle('rm', !!on); let g = G('rgx');
+  if (!on) { if (g) g.remove(); return; }
+  const geo = ringGeo(); if (!geo) return; const { cx, cy, a0, span, rN } = geo;
+  const best = R[0], prog = E + Math.max(0, best.end - best.r.t), MAX = Math.ceil(Math.max(prog, ...R.map(x => x.end)) / 300) * 300;
+  const ang = f => a0 + span * Math.min(1, Math.max(0, f)), P = (r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const arc = (r, f0, f1) => { if (f1 - f0 < .002) return ''; const b0 = ang(f0), b1 = ang(f1), p = P(r, b0), q = P(r, b1); return `M${p[0].toFixed(1)},${p[1].toFixed(1)} A${r},${r} 0 ${b1 - b0 > Math.PI ? 1 : 0} 1 ${q[0].toFixed(1)},${q[1].toFixed(1)}`; };
+  const ring = (r, sw, t, st, end, c, track) => (track ? `<path d="${arc(r, 0, 1)}" fill="none" stroke="${track}" stroke-width="${sw}"/>` : '') + (end ? `<path d="${arc(r, t / MAX, end / MAX)}" fill="none" stroke="${c}" stroke-width="${sw}" opacity=".16"/>` : '') + `<path d="${arc(r, 0, st / MAX)}" fill="none" stroke="#ff7a1a" stroke-width="${sw}"/><path d="${arc(r, st / MAX, t / MAX)}" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
+  const mmss = x => (x < 0 ? '−' : '') + Math.floor(Math.abs(x) / 60) + ':' + String(Math.round(Math.abs(x) % 60)).padStart(2, '0');
+  let o = ring(170, 12, E, rec.stop, prog, '#ffffff', '#1c1c1c') + ring(150, 12, best.r.t, best.r.st, best.end, '#a88e60', '#17140f');
+  const IC = ['#98989f', '#6e6e73'];
+  R.slice(1).forEach((x, i) => { const r = [86, 79][i]; o += `<path d="${arc(r, 0, 1)}" fill="none" stroke="#1d1d1d" stroke-width="2.4"/>` + ring(r, 2.4, x.r.t, x.r.st, 0, IC[i]); });
+  for (let m = 0; m * 60 <= MAX; m += MAX > 1800 ? 10 : 5) { const p = P(rN + 11, ang(m * 60 / MAX)); o += `<text x="${p[0].toFixed(1)}" y="${(p[1] + 4).toFixed(1)}" text-anchor="middle" font-size="13" fill="#cfcfcf" ${FF}>${m}</text>`; }
+  const an = ang(E / MAX), pa = P(110, an), pb = P(160, an), pm = P(150, an), nx = -Math.sin(an), ny = Math.cos(an);
+  o += `<path d="M${pa[0] + nx * 3.2},${pa[1] + ny * 3.2} L${pm[0] + nx * 1.8},${pm[1] + ny * 1.8} L${pm[0] - nx * 1.8},${pm[1] - ny * 1.8} L${pa[0] - nx * 3.2},${pa[1] - ny * 3.2}Z" fill="#fff"/><path d="M${pm[0] + nx * 1.8},${pm[1] + ny * 1.8} L${pb[0]},${pb[1]} L${pm[0] - nx * 1.8},${pm[1] - ny * 1.8}Z" fill="#ff5a1f"/>`;
+  const arr = new Date(Date.now() + Math.max(0, best.end - best.r.t) * 1000);
+  o += `<text x="${cx}" y="${cy - 26}" text-anchor="middle" font-size="12" font-weight="600" fill="#ff7a1a" ${FF}>Ampel ${mmss((Date.now() - rec.stillSince) / 1000)}</text>`;
+  const d = E - best.r.t; o += `<text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="36" font-weight="500" fill="#fff" ${FF}>${d >= 0 ? '+' : ''}${mmss(d)}</text>`;
+  o += `<text x="${cx}" y="${cy + 29}" text-anchor="middle" font-size="10.5" fill="#a8a8ae" ${FF}>Ankunft ≈ ${fmtTime(arr.toISOString())}</text>`;
+  [['#ffffff', 'Heute', E], ...R.map((x, i) => [i ? IC[i - 1] : '#a88e60', routeName(x.v, V.indexOf(x.v)), x.r.t])].forEach(([c, n, t], i) => o += `<text x="${cx - 52}" y="${cy + 68 + i * 13}" font-size="10" font-weight="600" fill="${c}" ${FF}>${esc(n).slice(0, 18)}</text><text x="${cx + 52}" y="${cy + 68 + i * 13}" text-anchor="end" font-size="10" fill="#8e8e93" ${FF}>${mmss(t)}</text>`);
+  if (!g) { g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.id = 'rgx'; sv.appendChild(g); }
+  g.innerHTML = o;
+}
 function driveSecond(stale) {
+  try { ringTick(); } catch (e) { }
   const now = new Date(), sec = rec.state === 'ready' ? 0 : (now - new Date(rec.start)) / 1000;
   const rl = G('dRec'); if (rl) { const st = rec.state === 'ready' ? 'BEREIT' : rec.state === 'pause' ? 'PAUSE' : 'AUFN.'; if (rl.dataset.s !== st) { rl.dataset.s = st; rl.className = 'rec ' + rec.state; rl.innerHTML = '<i></i>' + st; } }
   const et = G('dEta'); if (et) et.textContent = etaText();
@@ -778,6 +827,7 @@ const segDist = (p, a, b) => { const k = Math.cos(a.lat * Math.PI / 180), ax = a
 async function fetchRouteStations() {
   const k = db.settings.tkKey, a = db.settings.home, b = db.settings.work; if (!k || !a || !b) return;
   if (routeSt && Date.now() - routeSt.at < 30 * 60e3) return;
+  if (fetchRouteStations.tried && Date.now() - fetchRouteStations.tried < 5 * 60e3) return; fetchRouteStations.tried = Date.now();
   if (fetchRouteStations.last && Date.now() - fetchRouteStations.last < 5 * 60e3) return; fetchRouteStations.last = Date.now();
   const m = { lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 }, L0 = hav(a, b) / 1000, rad = Math.min(25, Math.ceil(L0 / 2 + 1));
   try { const r = await fetch('https://creativecommons.tankerkoenig.de/json/list.php?lat=' + m.lat + '&lng=' + m.lon + '&rad=' + rad + '&sort=dist&type=e5&apikey=' + encodeURIComponent(k)); const j = await r.json(); if (!j.ok) return;
@@ -802,19 +852,30 @@ function svcForecast(r) {
   return `<div class="svf">${ic('cal', 13)} Voraussichtlich ${q} ${M[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''} · bei ${Math.round(kmW)} km pro Woche</div>`;
 }
 /* Pendelrouten vergleichen: Fahrten nach Richtung und Weg gruppieren */
+/* Routenerkennung: gleiche Route, wenn ≥ 85 % der Punkte in einem 120-m-Korridor um die andere liegen */
+const LL = q => ({ lat: q[0], lon: q[1] });
+function distToRoute(p, r) { let m = 1e9; for (let i = 1; i < r.length; i++) { const d = segDist(p, LL(r[i - 1]), LL(r[i])); if (d < m) m = d; } return m; }
+function routeShare(r1, r2, km) { let n = 0; const st = Math.max(1, Math.floor(r1.length / 60)); let c = 0; for (let i = 0; i < r1.length; i += st) { c++; if (distToRoute(LL(r1[i]), r2) <= km) n++; } return c ? n / c : 0; }
+const sameRoute = (r1, r2) => routeShare(r1, r2, .12) >= .85 && routeShare(r2, r1, .12) >= .85;
+function commuteDir(t) { const a = db.settings.home, b = db.settings.work; if (!a || !b || !t.route || !t.route.length) return null; const p0 = LL(t.route[0]); return hav(p0, a) < hav(p0, b) ? 'go' : 'back'; }
+let rvCache = null;
 function routeVariants() {
   const a = db.settings.home, b = db.settings.work; if (!a || !b) return [];
   const T = db.trips.filter(t => t.commute && t.route && t.route.length > 8 && t.dur > 120 && Date.now() - new Date(t.start) < 120 * 864e5);
+  const sig = T.length + '|' + (T[0] ? T[0].id : '') + '|' + a.lat + b.lat; if (rvCache && rvCache.sig === sig) return rvCache.v;
   const G = [];
-  T.forEach(t => {
-    const p0 = { lat: t.route[0][0], lon: t.route[0][1] }, dir = hav(p0, a) < hav(p0, b) ? 'go' : 'back';
-    const pts = [.25, .5, .75].map(f => t.route[Math.floor(t.route.length * f)]);
-    let g = G.find(g => g.dir === dir && g.pts.every((q, i) => hav({ lat: q[0], lon: q[1] }, { lat: pts[i][0], lon: pts[i][1] }) < 450));
-    if (!g) { g = { dir, pts, trips: [], route: t.route }; G.push(g); }
-    g.trips.push(t);
+  T.slice().sort((x, y) => new Date(y.start) - new Date(x.start)).forEach(t => {
+    const dir = commuteDir(t); let g = G.find(g => g.dir === dir && sameRoute(t.route, g.route));
+    if (!g) { g = { dir, trips: [], route: t.route }; G.push(g); } g.trips.push(t);
   });
-  return G.filter(g => g.trips.length >= 2).map(g => { const d = g.trips.map(t => t.dur / 60), m = d.reduce((x, y) => x + y, 0) / d.length, sd = Math.sqrt(d.reduce((x, y) => x + (y - m) ** 2, 0) / d.length), st = g.trips.reduce((x, t) => x + (t.stop || 0), 0) / g.trips.length / 60; return { ...g, n: g.trips.length, m, sd, st }; });
+  const V = G.filter(g => g.trips.length >= 2).map(g => { const d = g.trips.map(t => t.dur / 60), m = d.reduce((x, y) => x + y, 0) / d.length, sd = Math.sqrt(d.reduce((x, y) => x + (y - m) ** 2, 0) / d.length), st = g.trips.reduce((x, t) => x + (t.stop || 0), 0) / g.trips.length / 60; return { ...g, n: g.trips.length, m, sd, st }; });
+  /* Name: Straße am Punkt, der am weitesten von den anderen Routen derselben Richtung entfernt ist */
+  V.forEach(v => { const oth = V.filter(o => o !== v && o.dir === v.dir); let bi = Math.floor(v.route.length / 2), bd = -1;
+    if (oth.length) v.route.forEach((q, i) => { if (i < v.route.length * .1 || i > v.route.length * .9) return; const d = Math.min(...oth.map(o => distToRoute(LL(q), o.route))); if (d > bd) { bd = d; bi = i; } });
+    const p = LL(v.route[bi]); v.key = p.lat.toFixed(3) + ',' + p.lon.toFixed(3); v.pt = p; });
+  rvCache = { sig, v: V }; return V;
 }
+function routeName(v, i) { const nm = (db.settings.routeNames || {})[v.key] || (db.settings.spotNames || {})[v.key]; if (!nm) streetName(v.pt, v.key); return nm || 'Weg ' + String.fromCharCode(65 + i); }
 function lightsYearCard() {
   const y = new Date().getFullYear(), T = db.trips.filter(t => new Date(t.start).getFullYear() === y), s = T.reduce((a, t) => a + (t.stop || 0), 0);
   if (s < 600) return '';
@@ -828,6 +889,48 @@ function pauschaleCard() {
   const y = new Date().getFullYear(), D = commuteDays(y), km = Math.round(db.settings.pendelKm || 0); if (!D.length || !km) return '';
   const eur = D.length * km * 0.38, m = new Date().getMonth() + 1, proj = Math.round(D.length / Math.max(1, (Date.now() - new Date(y, 0, 1)) / 864e5) * 365 * km * .38);
   return `<div class="card pps">${kh('note', 'Pendlerpauschale ' + y, '0,38 € / km')}<div class="hv"><b>${nf(eur, 0)}</b><small>€</small></div><div class="ppr"><span><b>${D.length}</b> Arbeitstage</span><span><b>${km}</b> km einfach</span><span>≈ <b>${nf(proj, 0)} €</b> im Jahr</span></div><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="ppexport">${ic('note', 13)} Liste für die Steuer</button></div><p class="mu" style="margin:10px 0 0">Gezählt wird jeder Tag mit mindestens einer Pendelfahrt. Keine Steuerberatung.</p></div>`;
+}
+/* Analyse wie Schlafanalyse: vier Tempo-Ebenen statt Messwerte */
+const LVL = [{ n: 'Flott', c: '#efbb3c' }, { n: 'Zügig', c: '#a88e60' }, { n: 'Zäh', c: '#98989f' }, { n: 'Stand', c: '#ff7a1a' }];
+const lvOf = v => v < 1 ? 3 : v < 20 ? 2 : v < 35 ? 1 : 0;
+function tripSegs(t) {
+  const S = (t.ser || []), bt = S.length ? t.dur / S.length : 0, G = [];
+  S.forEach(v => { const l = lvOf(v); if (G.length && G[G.length - 1].l === l) G[G.length - 1].n++; else G.push({ l, n: 1 }); });
+  let ch = true; while (ch) { ch = false;
+    for (let j = 1; j < G.length - 1; j++) if (G[j].n * bt < 10 && G[j].l !== 3) { G[j - 1].n += G[j].n; G.splice(j, 1); ch = true; break; }
+    for (let j = 1; j < G.length; j++) if (G[j].l === G[j - 1].l) { G[j - 1].n += G[j].n; G.splice(j, 1); ch = true; break; } }
+  let x = 0; G.forEach(g => { g.t0 = x; x += g.n * bt; g.t1 = x; }); return G;
+}
+const rvSel = { go: 0, back: 0 };
+function stagesCard() {
+  const V = routeVariants(); if (!V.length) return '';
+  const mmss = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+  let h = '';
+  ['go', 'back'].forEach(dir => {
+    const v = V.filter(x => x.dir === dir).sort((x, y) => x.m - y.m).slice(0, 4); if (!v.length) return;
+    const si = Math.min(rvSel[dir], v.length - 1), sv = v[si];
+    const rep = sv.trips.filter(t => t.ser && t.ser.length > 5).sort((a, b) => Math.abs(a.dur / 60 - sv.m) - Math.abs(b.dur / 60 - sv.m))[0]; if (!rep) return;
+    const sg = tripSegs(rep), T = rep.dur;
+    const W = 326, H = 172, x0 = 48, x1 = 318, rowH = 36, tp = 8, X = t => x0 + t / T * (x1 - x0), YL = l => tp + l * rowH + rowH / 2;
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    LVL.forEach((L, l) => s += `<rect x="${x0}" y="${tp + l * rowH + 2}" width="${x1 - x0}" height="${rowH - 4}" rx="8" fill="rgba(255,255,255,.025)"/><text x="0" y="${YL(l) + 4}" font-size="11" font-weight="600" fill="${L.c}" ${FF}>${L.n}</text>`);
+    for (let j = 1; j < sg.length; j++) { const x = X(sg[j].t0); s += `<line x1="${x.toFixed(1)}" y1="${YL(sg[j - 1].l)}" x2="${x.toFixed(1)}" y2="${YL(sg[j].l)}" stroke="rgba(255,255,255,.28)" stroke-width="1.2"/>`; }
+    sg.forEach(g => { const a = X(g.t0), b = X(g.t1), w = Math.max(4, b - a); s += `<rect x="${a.toFixed(1)}" y="${YL(g.l) - 7}" width="${w.toFixed(1)}" height="14" rx="${Math.min(3, w / 2)}" fill="${LVL[g.l].c}"/>`; });
+    for (let m = 0; m * 60 <= T; m += 5) s += `<text x="${X(m * 60).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#8e8e93" ${FF}>${m}</text>`;
+    s += '</svg>';
+    /* Anteile je Route (Mittel über ihre Fahrten) */
+    const sh = v.map(x => { const a = [0, 0, 0, 0]; let k = 0, ns = 0; x.trips.forEach(t => { if (!t.ser || t.ser.length < 6) return; k++; const G = tripSegs(t); G.forEach(g => a[g.l] += g.t1 - g.t0); ns += t.stops ? t.stops.length : G.filter(g => g.l === 3).length; }); return { a: a.map(y => k ? y / k : 0), n: k ? Math.round(ns / k) : 0 }; });
+    const tm = Math.max(...v.map(x => x.m * 60)), tot = sh[si].a.reduce((x, y) => x + y, 0) || 1;
+    const row = (x, i) => { const w = 200, hh = 30, yl = 19, lw = 2.4, st = sh[i].a[3]; let o = `<circle cx="8" cy="${yl}" r="7.5" fill="#0e1110" stroke="#ff7a1a" stroke-width="${lw}"/><text x="8" y="${yl + 3.3}" text-anchor="middle" font-size="9" font-weight="700" fill="#ff7a1a" ${FF}>${sh[i].n}</text>`, xx = 17.2, ox = 0, ol = 0;
+      [3, 0, 1, 2].forEach(l => { const len = sh[i].a[l] / tm * 150; if (len < .5) return; if (l === 3) { ox = xx; ol = len; } o += `<line x1="${xx.toFixed(1)}" y1="${yl}" x2="${(xx + len).toFixed(1)}" y2="${yl}" stroke="${LVL[l].c}" stroke-width="${lw}"/>`; xx += len + 1.2; });
+      o += `<text x="${ol >= 26 ? ox + ol / 2 : ox}" y="${yl - 7}" ${ol >= 26 ? 'text-anchor="middle" ' : ''}font-size="10" fill="#8e8e93" ${FF}>${mmss(st)}</text>`;
+      return `<div class="rw"><span class="rn" style="color:${['#efbb3c', '#d0d0d0', '#a88e60', '#98989f'][i]}">${esc(routeName(x, i))}</span><svg viewBox="0 0 ${w} ${hh}" style="height:${hh}px">${o}</svg><span class="rtm">${Math.round(x.m)} min</span></div>`; };
+    h += `<div class="card stg">${kh('route', dir === 'go' ? 'Weg zur Arbeit' : 'Weg nach Hause', 'Ø der letzten Fahrten')}
+     ${v.length > 1 ? `<div class="sgp">${v.map((x, i) => `<button class="${i === si ? 'on' : ''}" data-a="rvs" data-d="${dir}" data-i="${i}">${esc(routeName(x, i))}</button>`).join('')}</div>` : ''}
+     <div class="big"><b>${Math.round(sv.m)}</b><small>min · ${Math.round(sh[si].a[0] / tot * 100)} % flott · ${Math.round(sh[si].a[3] / tot * 100)} % Stand</small></div>${s}
+     <div class="rows">${v.map(row).join('')}</div></div>`;
+  });
+  return h;
 }
 function routeCompareCard() {
   const V = routeVariants(); if (!V.length) return '';
@@ -970,7 +1073,7 @@ function viewFahrten() {
   <div class="card">${kh('clock', 'Pendelzeit', '8 Wochen')}${rangeChart(wkGroups(all.filter(x => x.commute && x.dur > 120), x => Math.round(x.dur / 60)), cm.length ? cm.reduce((a, p) => a + p.y, 0) / cm.length : 0, 'min')}</div>
   <div class="card">${kh('speed', 'Tempo', 'Ø bis Höchstwert · 8 Wochen')}${rangeChart(wkGroups(all, x => x.max || x.avg).map((g, i) => ({ ...g, lo: wkGroups(all, x => x.avg)[i].lo })), all.length ? all.reduce((a, x) => a + (x.avg || 0), 0) / all.length : 0, 'km/h')}</div>
   <div class="card">${kh('bab', 'Zonen', '4 Wochen')}${(() => { const z = [0, 0, 0]; all.filter(x => Date.now() - new Date(x.start) < 28 * 864e5).forEach(x => (x.zk || [x.km, 0, 0]).forEach((v, k) => z[k] += v)); const S = z[0] + z[1] + z[2] || 1; return `<div class="zl">${z.map((v, k) => `<i style="flex:${Math.max(v / S, .002)};background:${ZCOL[k]}"></i>`).join('')}</div><div class="lg">${['Stadt', 'Land', 'Autobahn'].map((n, k) => `<span><i style="background:${ZCOL[k]}"></i>${n} ${Math.round(z[k] / S * 100)} %</span>`).join('')}</div>`; })()}</div>
-  ${lightsYearCard()}${routeCompareCard()}
+  ${lightsYearCard()}${stagesCard()}
   <div class="sec">Alle Fahrten</div>
   <div class="chips">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
   ${t.length ? t.map(x => {
@@ -1166,14 +1269,14 @@ function animEl(card, delay) {
     const sw = p.getAttribute('stroke'), da = p.getAttribute('stroke-dasharray') || p.style.strokeDasharray;
     if (!sw || sw === 'none' || da || p.closest('.ic, .rl, button.c')) return;
     let L = 0; try { L = p.getTotalLength(); } catch (e) { } if (!L || L < 6) return;
-    p.style.strokeDasharray = L; p.style.strokeDashoffset = L;
-    p.style.transition = `stroke-dashoffset ${Math.min(900, 380 + L * 1.2)}ms cubic-bezier(.3,.7,.2,1) ${delay + 80 + Math.min(i, 12) * 25}ms`;
-    requestAnimationFrame(() => requestAnimationFrame(() => { p.style.strokeDashoffset = 0; }));
+    p.style.transition = 'none'; p.style.strokeDasharray = L + 'px ' + L + 'px'; p.style.strokeDashoffset = L + 'px'; void getComputedStyle(p).strokeDashoffset;
+    const tr = `stroke-dashoffset ${Math.min(900, 380 + L * 1.2)}ms cubic-bezier(.3,.7,.2,1) ${delay + 80 + Math.min(i, 12) * 25}ms`;
+    requestAnimationFrame(() => { p.style.transition = tr; p.style.strokeDashoffset = '0px'; });
     setTimeout(() => { p.style.strokeDasharray = ''; p.style.strokeDashoffset = ''; p.style.transition = ''; }, delay + 1500);
   });
   card.querySelectorAll('svg rect').forEach((r, i) => { const h = +r.getAttribute('height'), w = +r.getAttribute('width'); if (!(h > 2 && w > 2) || r.getAttribute('fill') === 'none' || /rgba\(255,255,255,\.0/.test(r.getAttribute('fill') || '')) return;
-    r.style.transformBox = 'fill-box'; r.style.transformOrigin = h > w ? '50% 100%' : '0 50%'; r.style.transform = h > w ? 'scaleY(0)' : 'scaleX(0)';
-    r.style.transition = `transform 600ms cubic-bezier(.3,.7,.2,1) ${delay + 100 + Math.min(i, 16) * 22}ms`; requestAnimationFrame(() => requestAnimationFrame(() => { r.style.transform = ''; })); });
+    r.style.transition = 'none'; r.style.transformBox = 'fill-box'; r.style.transformOrigin = h > w ? '50% 100%' : '0 50%'; r.style.transform = h > w ? 'scaleY(0)' : 'scaleX(0)'; void getComputedStyle(r).transform;
+    const tr = `transform 600ms cubic-bezier(.3,.7,.2,1) ${delay + 100 + Math.min(i, 16) * 22}ms`; requestAnimationFrame(() => { r.style.transition = tr; r.style.transform = ''; }); });
 }
 function animView() {
   const key = tab + '|' + (sub || '') + '|' + (sub === 'trip' ? tripSel : '');
@@ -1181,7 +1284,8 @@ function animView() {
   if (reduceMotion() || (key === animKey && Date.now() - animView.at > 1500)) { cards.forEach(c => c.dataset.an = '1'); return; }
   if (key !== animKey) animView.at = Date.now(); animKey = key; if (animIO) animIO.disconnect();
   let n = 0;
-  animIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { animIO.unobserve(e.target); animEl(e.target, (n++ % 6) * 40); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
+  const base = sliding ? 200 : 0;
+  animIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { animIO.unobserve(e.target); animEl(e.target, base + (n++ % 6) * 40); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
   cards.forEach(c => animIO ? animIO.observe(c) : animEl(c, 0));
   setTimeout(() => { n = 0; }, 700);
 }
@@ -1255,6 +1359,7 @@ const actions = {
     try { const f = new File([txt], name, { type: 'text/csv' }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Pendlerpauschale ' + y }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv' })); a.download = name; a.click();
   },
+  rvs(el) { rvSel[el.dataset.d] = +el.dataset.i; render(); },
   rtroute() { const x = routeSt && routeSt.list[0]; if (x) location.href = 'https://maps.apple.com/?daddr=' + x.lat + ',' + x.lon + '&dirflg=d'; },
   nfccopy() { const u = location.origin + location.pathname + '?start'; try { navigator.clipboard.writeText(u); toast('Link kopiert'); } catch (e) { toast(u); } },
   tks(el) { db.settings.tkSort = el.dataset.f; save(); render(); },
