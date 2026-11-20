@@ -26,6 +26,7 @@ const IP = {
   light: '<rect x="7.5" y="2.5" width="9" height="19" rx="4.5"/><circle cx="12" cy="7" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="17" r="1.6"/>',
   route: '<circle cx="6" cy="19" r="2.6"/><path d="M8.6 19h8.4a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.4"/><circle cx="18" cy="5" r="2.6"/>',
   speed: '<path d="M6.84 20.37A9 9 0 1 1 17.16 20.37"/><path d="M12 13l4.3-4.4"/><circle cx="12" cy="13" r="1.2" fill="#fff" stroke="none"/>',
+  grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
   locarrow: '<path d="M20 4L4 11l7 2 2 7z"/>',
   cal: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
@@ -66,6 +67,7 @@ function load() {
   try { db = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch (e) { db = defaults(); }
   db.trips = db.trips || []; db.logs = db.logs || []; db.reminders = db.reminders || [];
   db.settings = Object.assign(defaults().settings, db.settings || {});
+  const op = db.settings.odoPhoto; if (op && (!op.t || Date.now() - new Date(op.t) > 864e5)) { delete db.settings.odoPhoto; try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { } }
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Speichern fehlgeschlagen'); } }
 
@@ -199,10 +201,10 @@ function bestTimeCard(id, title) {
   const W = 326, H = 120, x0 = 8, x1 = 318, lo = Math.min(...v) - 1, hi = Math.max(...v) + 1, X = h => x0 + h * (x1 - x0) / 23, Y = c => 92 - (c - lo) / (hi - lo) * 80;
   const pts = v.map((c, h) => [X(h), Y(c)]);
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><rect x="${X(b0) - 4}" y="6" width="${X(b1 - 1) - X(b0) + 8}" height="90" rx="6" fill="rgba(255,214,90,.10)"/>`;
-  s += `<line x1="${x0}" y1="${Y(0)}" x2="${x1}" y2="${Y(0)}" stroke="#3a3a3c" stroke-dasharray="3 4"/>`;
+  s += `<line x1="${x0}" y1="${Y(0)}" x2="${x1}" y2="${Y(0)}" stroke="rgba(255,255,255,.12)" stroke-dasharray="3 4"/>`;
   const pa = bez(pts.slice(0, 12).concat([[X(11.92), Y(v[11])]])), pb = bez(pts.slice(12));
   s += `<path d="${pa} L${pts[12][0]},${pts[12][1]} ${pb.replace(/^M/, 'L')}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
-  s += `<circle cx="${X(h0)}" cy="${Y(v[h0])}" r="4.5" fill="#fff" stroke="#0e1110" stroke-width="2"/>`;
+  s += `<circle cx="${X(h0)}" cy="${Y(v[h0])}" r="4.5" fill="#fff" stroke="rgba(8,18,14,.9)" stroke-width="2"/>`;
   [0, 6, 12, 18, 23].forEach(h => s += `<text x="${X(h)}" y="114" text-anchor="${h === 0 ? 'start' : h === 23 ? 'end' : 'middle'}" font-size="10" fill="#8e8e93" ${FF}>${h === 23 ? 24 : h}</text>`);
   s += '</svg>';
   const now = v[h0], d = Math.round(now - mn);
@@ -382,7 +384,7 @@ function dialSVG(hi) {
   <linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe8bb"/><stop offset=".2" stop-color="#d7ba87"/><stop offset=".45" stop-color="#a88e60"/><stop offset=".7" stop-color="#6a522e"/><stop offset="1" stop-color="#3e2f18"/></linearGradient><filter id="sat" x="-.1" y="-.1" width="1.2" height="1.2"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="3" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="saturate" values="0" result="g"/><feComposite in="SourceGraphic" in2="g" operator="arithmetic" k1="0" k2="1" k3=".09" k4="-.045" result="c"/><feComposite in="c" in2="SourceGraphic" operator="in"/></filter><radialGradient id="eo" gradientUnits="userSpaceOnUse" cx="170" cy="170" r="159"><stop offset="0.9836" stop-color="#000" stop-opacity="0"/><stop offset="0.9918" stop-color="#fff4d6" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient><radialGradient id="ei" gradientUnits="userSpaceOnUse" cx="170" cy="170" r="143.6"><stop offset="0.9819" stop-color="#000" stop-opacity=".5"/><stop offset="0.9909" stop-color="#fff4d6" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><g filter="url(#sat)"><circle cx="170" cy="170" r="150" fill="none" stroke="url(#gA)" stroke-width="18"/></g><circle cx="170" cy="170" r="157.7" fill="none" stroke="url(#eo)" stroke-width="2.6"/><circle cx="170" cy="170" r="142.3" fill="none" stroke="url(#ei)" stroke-width="2.6"/><circle cx="170" cy="170" r="141" fill="#050505"/><circle cx="170" cy="170" r="140.3" fill="none" stroke="#000" stroke-width="1.4"/>`;
   for (let v = 0; v < hi; v += 10) {
     const d1 = 135 + 270 * v / hi + 1.3, d2 = 135 + 270 * (v + 10) / hi - 1.3;
-    s += `<path id="sg${v}" d="${arcd(170, d1, d2)}" stroke="#1c1c1c" stroke-width="12" fill="none"/><path id="sf${v}" d="" stroke="#ff3a1c" stroke-width="12" fill="none"/><path id="sa${v}" d="${arcd(179, d1, d2)}" stroke="#fff" stroke-width="2" fill="none" opacity="0"/>`;
+    s += `<path id="sg${v}" d="${arcd(170, d1, d2)}" stroke="rgba(255,255,255,.13)" stroke-width="12" fill="none"/><path id="sf${v}" d="" stroke="#ff3a1c" stroke-width="12" fill="none"/><path id="sa${v}" d="${arcd(179, d1, d2)}" stroke="#fff" stroke-width="2" fill="none" opacity="0"/>`;
   }
   for (let v = 0; v <= hi; v++) {
     const ang = 135 + 270 * v / hi, maj = v % 10 === 0, mid = v % 5 === 0 && !maj;
@@ -400,7 +402,7 @@ function dialSVG(hi) {
   s += `<text id="rng" x="170" y="240" fill="#8c8c8c" font-size="11" text-anchor="middle" ${ff}></text>`;
   s += `<path id="holdR" d="" fill="none" stroke="#ff2d2d" stroke-width="18"/>`;
   s += `<g id="ndl" transform="rotate(135 170 170)" opacity="0"><path d="M208 163.8 L292.6 166.68 L292.6 173.32 L208 176.2Z" fill="#ffffff"/><path d="M292.6 166.68 L302 167.0 A3.0 3.0 0 0 1 302 173.0 L292.6 173.32Z" fill="#ff5a1f"/></g>`;
-  s += `<circle cx="170" cy="170" r="48" fill="#050505" stroke="#262626" stroke-width="1.2"/>`;
+  s += `<circle cx="170" cy="170" r="48" fill="#050505" stroke="rgba(255,255,255,.16)" stroke-width="1.2"/>`;
   s += `<text id="spd" x="170" y="188" fill="#fff" font-size="60" text-anchor="middle" letter-spacing="-1" ${ff} opacity="0">0</text><text id="kmh" x="170" y="208" fill="#8c8c8c" font-size="14" text-anchor="middle" ${ff} opacity="0">km/h</text>`;
   return s + '</svg>';
 }
@@ -446,7 +448,7 @@ function curveSVG(avg) {
   const h = rec.hist.filter(x => now - x.t <= span);
   const X = t => x1 - (now - t) / span * (x1 - x0);
   const vmax = Math.max(60, ...h.map(x => x.v)), yv = v => 28 - 24 * v / vmax, ya = a => 48 - 11 * Math.max(-22, Math.min(22, a)) / 22;
-  const grid = (a, b) => { let s = ''; for (let y = a; y < b; y += 6) s += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#1d1d1d"/>`; return s; };
+  const grid = (a, b) => { let s = ''; for (let y = a; y < b; y += 6) s += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="rgba(255,255,255,.12)"/>`; return s; };
   let s = `<svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 ${W} ${H}">${grid(4, 28)}${grid(38, 62)}<line x1="${x0}" y1="28" x2="${x1}" y2="28" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="48" x2="${x1}" y2="48" stroke="#555" stroke-width="1"/>`;
   const sp = h.map(x => [X(x.t), yv(x.v)]), ac = h.map((x, i) => [X(x.t), ya(i ? x.v - h[i - 1].v : 0)]);
   if (sp.length > 1) {
@@ -584,7 +586,7 @@ function ringTick() {
   const mmss = x => (x < 0 ? '−' : '') + Math.floor(Math.abs(x) / 60) + ':' + String(Math.round(Math.abs(x) % 60)).padStart(2, '0');
   let o = ring(170, 12, E, rec.stop, prog, '#ffffff', '#1c1c1c') + ring(150, 12, best.r.t, best.r.st, best.end, '#a88e60', '#17140f');
   const IC = ['#98989f', '#6e6e73'];
-  R.slice(1).forEach((x, i) => { const r = [86, 79][i]; o += `<path d="${arc(r, 0, 1)}" fill="none" stroke="#1d1d1d" stroke-width="2.4"/>` + ring(r, 2.4, x.r.t, x.r.st, 0, IC[i]); });
+  R.slice(1).forEach((x, i) => { const r = [86, 79][i]; o += `<path d="${arc(r, 0, 1)}" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2.4"/>` + ring(r, 2.4, x.r.t, x.r.st, 0, IC[i]); });
   for (let m = 0; m * 60 <= MAX; m += MAX > 1800 ? 10 : 5) { const p = P(rN + 11, ang(m * 60 / MAX)); o += `<text x="${p[0].toFixed(1)}" y="${(p[1] + 4).toFixed(1)}" text-anchor="middle" font-size="13" fill="#cfcfcf" ${FF}>${m}</text>`; }
   const an = ang(E / MAX), pa = P(110, an), pb = P(160, an), pm = P(150, an), nx = -Math.sin(an), ny = Math.cos(an);
   o += `<path d="M${pa[0] + nx * 3.2},${pa[1] + ny * 3.2} L${pm[0] + nx * 1.8},${pm[1] + ny * 1.8} L${pm[0] - nx * 1.8},${pm[1] - ny * 1.8} L${pa[0] - nx * 3.2},${pa[1] - ny * 3.2}Z" fill="#fff"/><path d="M${pm[0] + nx * 1.8},${pm[1] + ny * 1.8} L${pb[0]},${pb[1]} L${pm[0] - nx * 1.8},${pm[1] - ny * 1.8}Z" fill="#ff5a1f"/>`;
@@ -673,23 +675,23 @@ function monthChart(ms) {
   const X = i => 18 + (W - 40) * i / (v.length - 1), Y = x => 92 - 66 * (x - lo) / (hi - lo || 1);
   const pts = v.map((x, i) => [X(i), Y(x)]);
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ma" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2c14e" stop-opacity=".45"/><stop offset="1" stop-color="#f2c14e" stop-opacity="0"/></linearGradient></defs>`;
-  [22, 52, 82].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
+  [22, 52, 82].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="rgba(255,255,255,.12)"/>`);
   s += `<path d="${bez(pts)} L${X(v.length - 1)} 100 L${X(0)} 100 Z" fill="url(#ma)"/><path d="${bez(pts)}" fill="none" stroke="#f2c14e" stroke-width="2.4"/>`;
   v.forEach((x, i) => { const last = i === v.length - 1; s += `<circle cx="${X(i)}" cy="${Y(x).toFixed(1)}" r="${last ? 3.4 : 2.2}" fill="${last ? '#0e1110' : '#f2c14e'}" stroke="#f2c14e" stroke-width="${last ? 2.4 : 0}"/><text x="${X(i)}" y="124" fill="${last ? '#fff' : '#8c8c8c'}" font-size="10" text-anchor="middle" letter-spacing="1">${ms[i].l}</text>`; });
-  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 12).toFixed(1)}" fill="#fff" font-size="13" text-anchor="middle" paint-order="stroke" stroke="#0e1110" stroke-width="4">${v[v.length - 1]}</text></svg>`;
+  return s + `<text x="${X(v.length - 1)}" y="${(Y(v[v.length - 1]) - 12).toFixed(1)}" fill="#fff" font-size="13" text-anchor="middle" paint-order="stroke" stroke="rgba(8,18,14,.55)" stroke-width="4">${v[v.length - 1]}</text></svg>`;
 }
 function typeChart(ms) {
   const W = 326, H = 120, mx = Math.max(1, ...ms.flatMap(m => m.z));
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}">`;
-  [14, 44, 74].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#1d1d1d"/>`);
+  [14, 44, 74].forEach(y => s += `<line x1="6" y1="${y}" x2="${W - 6}" y2="${y}" stroke="rgba(255,255,255,.12)"/>`);
   const ends = [];
   [0, 1, 2].forEach(k => {
     const pts = ms.map((m, i) => [14 + (W - 56) * i / (ms.length - 1), 92 - 82 * m.z[k] / mx]), e = pts[pts.length - 1];
-    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.4"/><circle cx="${e[0]}" cy="${e[1].toFixed(1)}" r="3.4" fill="#0e1110" stroke="${ZCOL[k]}" stroke-width="2.4"/>`;
+    s += `<path d="${bez(pts)}" fill="none" stroke="${ZCOL[k]}" stroke-width="2.4"/><circle cx="${e[0]}" cy="${e[1].toFixed(1)}" r="3.4" fill="rgba(8,18,14,.9)" stroke="${ZCOL[k]}" stroke-width="2.4"/>`;
     ends.push({ y: e[1], k, x: e[0] });
   });
   ends.sort((a, b) => a.y - b.y); for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
-  ends.forEach(e => s += `<text x="${e.x + 10}" y="${(e.y + 4).toFixed(1)}" fill="${ZCOL[e.k]}" font-size="11" paint-order="stroke" stroke="#0e1110" stroke-width="4" stroke-linejoin="round">${Math.round(ms[ms.length - 1].z[e.k])}</text>`);
+  ends.forEach(e => s += `<text x="${e.x + 10}" y="${(e.y + 4).toFixed(1)}" fill="${ZCOL[e.k]}" font-size="11" paint-order="stroke" stroke="rgba(8,18,14,.55)" stroke-width="4" stroke-linejoin="round">${Math.round(ms[ms.length - 1].z[e.k])}</text>`);
   ms.forEach((m, i) => s += `<text x="${14 + (W - 56) * i / (ms.length - 1)}" y="114" fill="#8c8c8c" font-size="10" text-anchor="middle" letter-spacing="1">${m.l}</text>`);
   return s + '</svg>';
 }
@@ -713,7 +715,7 @@ function weekLine(dd, td, avg) {
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><line x1="${x0}" x2="${x1}" y1="92" y2="92" stroke="rgba(255,255,255,.12)"/>`;
   if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3 4"/><text x="${x1}" y="${(Y(avg) - 7).toFixed(1)}" text-anchor="end" font-size="9" fill="#9aa8a5" paint-order="stroke" stroke="#16211f" stroke-width="4" ${FF}>Ø ${nf(avg, 0)}</text>`;
   if (pts.length > 1) s += `<path d="${bez(pts)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
-  pts.forEach((p, i) => s += i === td ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="#efbb3c"/>`);
+  pts.forEach((p, i) => s += i === td ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="rgba(8,18,14,.9)" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="#efbb3c"/>`);
   for (let i = td + 1; i < 7; i++) s += `<circle cx="${X(i)}" cy="92" r="1.6" fill="rgba(255,255,255,.25)"/>`;
   ['M', 'D', 'M', 'D', 'F', 'S', 'S'].forEach((d, i) => s += `<text x="${X(i)}" y="108" text-anchor="middle" font-size="10" fill="${i === td ? '#efbb3c' : '#9aa8a5'}" ${FF}>${d}</text>`);
   return s + '</svg>';
@@ -724,16 +726,16 @@ function rangeChart(g, avg, unit, title) {
   const lo = Math.min(...v.map(x => x.lo)), hi = Math.max(...v.map(x => x.hi));
   const top = Math.ceil(hi * 1.15 / 10) * 10 || 10, W = 326, H = 150, x0 = 4, x1 = 290, n = g.length, bw = Math.min(9, (x1 - x0) / n - 5), Y = y => 128 - y / top * 118;
   let s = `<div class="rg"><span>${title || 'Bereich'}</span><b>${nf(lo, 0)}–${nf(hi, 0)}<small> ${unit}</small></b></div><svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
-  [0, top / 2, top].forEach(t => s += `<line x1="${x0}" x2="${x1 + 8}" y1="${Y(t)}" y2="${Y(t)}" stroke="#2a2a2c"/><text x="${W}" y="${Y(t) + 4}" text-anchor="end" font-size="10" fill="#8e8e93" ${FF}>${nf(t, 0)}</text>`);
-  g.forEach((x, i) => { const cx = x0 + (i + .5) * (x1 - x0) / n; if (x.l) s += `<line x1="${cx - (x1 - x0) / n / 2}" x2="${cx - (x1 - x0) / n / 2}" y1="8" y2="${H - 4}" stroke="#2a2a2c" stroke-dasharray="2 3"/><text x="${cx - (x1 - x0) / n / 2 + 3}" y="${H - 2}" font-size="10" fill="#8e8e93" ${FF}>${x.l}</text>`;
+  [0, top / 2, top].forEach(t => s += `<line x1="${x0}" x2="${x1 + 8}" y1="${Y(t)}" y2="${Y(t)}" stroke="rgba(255,255,255,.12)"/><text x="${W}" y="${Y(t) + 4}" text-anchor="end" font-size="10" fill="#8e8e93" ${FF}>${nf(t, 0)}</text>`);
+  g.forEach((x, i) => { const cx = x0 + (i + .5) * (x1 - x0) / n; if (x.l) s += `<line x1="${cx - (x1 - x0) / n / 2}" x2="${cx - (x1 - x0) / n / 2}" y1="8" y2="${H - 4}" stroke="rgba(255,255,255,.12)" stroke-dasharray="2 3"/><text x="${cx - (x1 - x0) / n / 2 + 3}" y="${H - 2}" font-size="10" fill="#8e8e93" ${FF}>${x.l}</text>`;
     if (x.hi > 0) s += `<rect x="${cx - bw / 2}" y="${Y(x.hi)}" width="${bw}" height="${Math.max(bw, Y(x.lo) - Y(x.hi))}" rx="${bw / 2}" fill="#3a3a3c"/>`; });
-  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round"/><text x="${x1}" y="${Y(avg) - 9}" text-anchor="end" font-size="13" font-weight="600" fill="#efbb3c" paint-order="stroke" stroke="#0e1110" stroke-width="4" stroke-linejoin="round" ${FF}>${nf(avg, 0)} ${unit}</text>`;
+  if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round"/><text x="${x1}" y="${Y(avg) - 9}" text-anchor="end" font-size="13" font-weight="600" fill="#efbb3c" paint-order="stroke" stroke="rgba(8,18,14,.55)" stroke-width="4" stroke-linejoin="round" ${FF}>${nf(avg, 0)} ${unit}</text>`;
   return s + '</svg>';
 }
 const wkGroups = (ts, f, nW = 8) => { const out = []; for (let i = nW - 1; i >= 0; i--) { const a = weekStart(i), b = new Date(+a + 7 * 864e5), xs = ts.filter(t => { const d = new Date(t.start); return d >= a && d < b; }).map(f).filter(x => x != null); out.push({ lo: xs.length ? Math.min(...xs) : 0, hi: xs.length ? Math.max(...xs) : 0, l: a.getDate() <= 7 ? MO[a.getMonth()].charAt(0) + MO[a.getMonth()].slice(1, 3).toLowerCase() : '' }); } return out; };
 function ring(frac, col, sz = 64) {
   const r = sz / 2 - 6, c = 2 * Math.PI * r;
-  return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2.4"/><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="${(c * Math.max(.02, frac)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${sz / 2} ${sz / 2})"/><circle cx="${(sz / 2 + r * Math.sin(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" cy="${(sz / 2 - r * Math.cos(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" r="3.4" fill="#0e1110" stroke="${col}" stroke-width="2.4"/></svg>`;
+  return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2.4"/><circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="${(c * Math.max(.02, frac)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${sz / 2} ${sz / 2})"/><circle cx="${(sz / 2 + r * Math.sin(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" cy="${(sz / 2 - r * Math.cos(2 * Math.PI * Math.max(.02, frac))).toFixed(1)}" r="3.4" fill="rgba(8,18,14,.9)" stroke="${col}" stroke-width="2.4"/></svg>`;
 }
 function cmpBars(a, b, la, lb) {
   const m = Math.max(a, b, 1);
@@ -744,7 +746,7 @@ function scatter(pts, opt = {}) {
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y), xa = Math.min(...xs), xb = Math.max(...xs) || 1, ya = Math.min(...ys), yb = Math.max(...ys);
   const lo = Math.floor(ya - 2), hi = Math.ceil(yb + 2), X = x => x0 + (x - xa) / ((xb - xa) || 1) * (x1 - x0), Y = y => 110 - (y - lo) / ((hi - lo) || 1) * 100;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
-  [lo, hi].forEach(v => s += `<line x1="${x0}" x2="${x1}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1d1d1d"/><text x="${x1}" y="${Y(v) - 3}" text-anchor="end" font-size="9" fill="#8e8e93" ${FF}>${v}${opt.u || ''}</text>`);
+  [lo, hi].forEach(v => s += `<line x1="${x0}" x2="${x1}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.12)"/><text x="${x1}" y="${Y(v) - 3}" text-anchor="end" font-size="9" fill="#8e8e93" ${FF}>${v}${opt.u || ''}</text>`);
   if (opt.trend) { const n = pts.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n, k = pts.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0) / (pts.reduce((a, p) => a + (p.x - mx) ** 2, 0) || 1); s += `<line x1="${X(xa)}" y1="${Y(my + k * (xa - mx))}" x2="${X(xb)}" y2="${Y(my + k * (xb - mx))}" stroke="#efbb3c" stroke-width="1.6" stroke-dasharray="5 4"/>`; }
   pts.forEach(p => s += `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="3.4" fill="${p.c || '#fff'}"/>`);
   return s + '</svg>';
@@ -752,7 +754,7 @@ function scatter(pts, opt = {}) {
 function rangeBars(days) {
   const W = 326, H = 130, n = days.length, bw = Math.min(14, (W - 10) / n - 6), m = Math.max(60, ...days.map(d => d.hi)), Y = v => 110 - v / m * 100;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><defs>${days.map((d, i) => `<linearGradient id="rg${i}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#6a6a6e"/><stop offset="1" stop-color="${zcol(d.hi)}"/></linearGradient>`).join('')}</defs>`;
-  [0, 50, 100].filter(v => v <= m).forEach(v => s += `<line x1="0" x2="${W}" y1="${Y(v)}" y2="${Y(v)}" stroke="#1d1d1d"/><text x="${W}" y="${Y(v) - 3}" text-anchor="end" font-size="9" fill="#8e8e93" ${FF}>${v}</text>`);
+  [0, 50, 100].filter(v => v <= m).forEach(v => s += `<line x1="0" x2="${W}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.12)"/><text x="${W}" y="${Y(v) - 3}" text-anchor="end" font-size="9" fill="#8e8e93" ${FF}>${v}</text>`);
   days.forEach((d, i) => { const x = 4 + i * (W - 30) / n; if (d.hi) s += `<rect x="${x}" y="${Y(d.hi)}" width="${bw}" height="${Math.max(bw, Y(d.lo) - Y(d.hi))}" rx="${bw / 2}" fill="url(#rg${i})"/>`; s += `<text x="${x + bw / 2}" y="126" text-anchor="middle" font-size="9" fill="#8e8e93" ${FF}>${d.l}</text>`; });
   return s + '</svg>';
 }
@@ -767,8 +769,8 @@ function lineChart(vals, labels, u) {
   const lo = Math.min(...vals) * .9, hi = Math.max(...vals) * 1.1, X = i => x0 + i * (x1 - x0) / (vals.length - 1), Y = v => 100 - (v - lo) / ((hi - lo) || 1) * 88;
   const pts = vals.map((v, i) => [X(i), Y(v)]);
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" class="ch"><path d="${bez(pts)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round"/>`;
-  pts.forEach((p, i) => s += i === pts.length - 1 ? `<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0]}" cy="${p[1]}" r="2.2" fill="#efbb3c"/>`);
-  s += `<text x="${x1 + 10}" y="${Y(vals[vals.length - 1]) + 4}" font-size="11" fill="#efbb3c" paint-order="stroke" stroke="#0e1110" stroke-width="4" stroke-linejoin="round" ${FF}>${nf(vals[vals.length - 1], 1)}${u || ''}</text>`;
+  pts.forEach((p, i) => s += i === pts.length - 1 ? `<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="rgba(8,18,14,.9)" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0]}" cy="${p[1]}" r="2.2" fill="#efbb3c"/>`);
+  s += `<text x="${x1 + 10}" y="${Y(vals[vals.length - 1]) + 4}" font-size="11" fill="#efbb3c" paint-order="stroke" stroke="rgba(8,18,14,.55)" stroke-width="4" stroke-linejoin="round" ${FF}>${nf(vals[vals.length - 1], 1)}${u || ''}</text>`;
   if (labels) labels.forEach((l, i) => { if (i === 0 || i === labels.length - 1) s += `<text x="${X(i)}" y="116" text-anchor="${i ? 'end' : 'start'}" font-size="9" fill="#8e8e93" ${FF}>${l}</text>`; });
   return s + '</svg>';
 }
@@ -796,7 +798,7 @@ function miniCurve(a, w, h) {
   if (a.length < 2) a = [0, ...a];
   const m = Math.max(1, ...a), pts = a.map((x, i) => [4 + i * (w - 8) / (a.length - 1), h - 4 - (h - 10) * x / m]);
   let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${bez(pts)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
-  pts.forEach((p, i) => s += i === pts.length - 1 ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="#efbb3c"/>`);
+  pts.forEach((p, i) => s += i === pts.length - 1 ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="rgba(8,18,14,.9)" stroke="#efbb3c" stroke-width="2.4"/>` : `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" fill="#efbb3c"/>`);
   return s + '</svg>';
 }
 const daysAgo = s => s ? (Date.now() - new Date(s)) / 864e5 : 1e9;
@@ -926,7 +928,7 @@ function stagesCard() {
     /* Anteile je Route (Mittel über ihre Fahrten) */
     const sh = v.map(x => { const a = [0, 0, 0, 0]; let k = 0, ns = 0; x.trips.forEach(t => { if (!t.ser || t.ser.length < 6) return; k++; const G = tripSegs(t); G.forEach(g => a[g.l] += g.t1 - g.t0); ns += t.stops ? t.stops.length : G.filter(g => g.l === 3).length; }); return { a: a.map(y => k ? y / k : 0), n: k ? Math.round(ns / k) : 0 }; });
     const tm = Math.max(...v.map(x => x.m * 60)), tot = sh[si].a.reduce((x, y) => x + y, 0) || 1;
-    const row = (x, i) => { const w = 200, hh = 30, yl = 19, lw = 2.4, st = sh[i].a[3]; let o = `<circle cx="8" cy="${yl}" r="7.5" fill="#0e1110" stroke="#ff7a1a" stroke-width="${lw}"/><text x="8" y="${yl + 3.3}" text-anchor="middle" font-size="9" font-weight="700" fill="#ff7a1a" ${FF}>${sh[i].n}</text>`, xx = 17.2, ox = 0, ol = 0;
+    const row = (x, i) => { const w = 200, hh = 30, yl = 19, lw = 2.4, st = sh[i].a[3]; let o = `<circle cx="8" cy="${yl}" r="7.5" fill="rgba(8,18,14,.9)" stroke="#ff7a1a" stroke-width="${lw}"/><text x="8" y="${yl + 3.3}" text-anchor="middle" font-size="9" font-weight="700" fill="#ff7a1a" ${FF}>${sh[i].n}</text>`, xx = 17.2, ox = 0, ol = 0;
       [3, 0, 1, 2].forEach(l => { const len = sh[i].a[l] / tm * 150; if (len < .5) return; if (l === 3) { ox = xx; ol = len; } o += `<line x1="${xx.toFixed(1)}" y1="${yl}" x2="${(xx + len).toFixed(1)}" y2="${yl}" stroke="${LVL[l].c}" stroke-width="${lw}"/>`; xx += len + 1.2; });
       o += `<text x="${ol >= 26 ? ox + ol / 2 : ox}" y="${yl - 7}" ${ol >= 26 ? 'text-anchor="middle" ' : ''}font-size="10" fill="#8e8e93" ${FF}>${mmss(st)}</text>`;
       return `<div class="rw"><span class="rn" style="color:${['#efbb3c', '#d0d0d0', '#a88e60', '#98989f'][i]}">${esc(routeName(x, i))}</span><svg viewBox="0 0 ${w} ${hh}" style="height:${hh}px">${o}</svg><span class="rtm">${Math.round(x.m)} min</span></div>`; };
@@ -957,10 +959,10 @@ function routeCompareCard() {
       let dx = a1[0] - a0[0], dy = a1[1] - a0[1]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l; const L = 3 + 7 * c.avg / amx;
       svg += `<line x1="${(q[0] - dy * L).toFixed(1)}" y1="${(q[1] + dx * L).toFixed(1)}" x2="${(q[0] + dy * L).toFixed(1)}" y2="${(q[1] - dx * L).toFixed(1)}" stroke="${COL[c.i]}" stroke-width="1.6" stroke-linecap="round"/>`;
     });
-    if (worst) { const q = P([worst.lat, worst.lon]); svg += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4.6" fill="#0e1110" stroke="var(--o)" stroke-width="2.2"/>`; }
+    if (worst) { const q = P([worst.lat, worst.lon]); svg += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4.6" fill="rgba(8,18,14,.9)" stroke="var(--o)" stroke-width="2.2"/>`; }
     /* Start und Ziel als Endringe wie bei den Kurven */
     const s0 = P(v[0].route[0]), s1 = P(v[0].route[v[0].route.length - 1]), lab = dir === 'go' ? ['Zuhause', 'Arbeit'] : ['Arbeit', 'Zuhause'];
-    [[s0, lab[0]], [s1, lab[1]]].forEach(([q, t]) => { const left = q[0] < W / 2; svg += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="3.4" fill="#0e1110" stroke="#98989f" stroke-width="1.8"/><text x="${(q[0] + (left ? -8 : 8)).toFixed(1)}" y="${(q[1] + 16).toFixed(1)}" text-anchor="${left ? 'start' : 'end'}" font-size="10" fill="#8e8e93" ${FF}>${t}</text>`; });
+    [[s0, lab[0]], [s1, lab[1]]].forEach(([q, t]) => { const left = q[0] < W / 2; svg += `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="3.4" fill="rgba(8,18,14,.9)" stroke="#98989f" stroke-width="1.8"/><text x="${(q[0] + (left ? -8 : 8)).toFixed(1)}" y="${(q[1] + 16).toFixed(1)}" text-anchor="${left ? 'start' : 'end'}" font-size="10" fill="#8e8e93" ${FF}>${t}</text>`; });
     svg = '<div class="zm">' + svg + '</svg></div>';
     let wl = '';
     if (worst) { const key = worst.lat.toFixed(4) + ',' + worst.lon.toFixed(4), nm = (db.settings.spotNames || {})[key]; if (!nm) streetName(worst, key); wl = `<div class="info wl"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--o)" stroke-width="2"/></svg> Längster Halt${nm ? ': ' + esc(nm) : ''} · Ø ${Math.round(worst.avg)} s</div>`; }
@@ -1162,13 +1164,13 @@ function tripCurve(ser, avg, dur) {
   const W = 326, H = 170, x0 = 6, x1 = 320, n = ser.length; if (n < 2) return '';
   const vmax = Math.max(60, ...ser), X = i => x0 + i * (x1 - x0) / (n - 1), yv = v => 98 - 90 * v / vmax;
   const ac = ser.map((v, i) => i ? v - ser[i - 1] : 0), amax = Math.max(8, ...ac.map(Math.abs)), ya = v => 140 - 22 * v / amax;
-  let g = ''; for (let y = 8; y <= 98; y += 15) g += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#1d1d1d"/>`; for (let y = 120; y <= 162; y += 11) g += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#1d1d1d"/>`;
+  let g = ''; for (let y = 8; y <= 98; y += 15) g += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="rgba(255,255,255,.12)"/>`; for (let y = 120; y <= 162; y += 11) g += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="rgba(255,255,255,.12)"/>`;
   const sp = ser.map((v, i) => [X(i), yv(v)]), as = ac.map((v, i) => [X(i), ya(v)]), mi = ser.indexOf(Math.max(...ser));
   const lab = s => { const m = Math.round(s / 60); return m + ' min'; };
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><defs><clipPath id="tneg"><rect x="${x0}" y="140" width="${x1 - x0}" height="30"/></clipPath></defs>${g}<line x1="${x0}" y1="98" x2="${x1}" y2="98" stroke="#444" stroke-width="1.2"/><line x1="${x0}" y1="140" x2="${x1}" y2="140" stroke="#555"/>
   <path d="${bez(sp)}" fill="none" stroke="#efbb3c" stroke-width="2.4" stroke-linejoin="round"/>
   <line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="rgba(255,255,255,.6)" stroke-width="1.2" stroke-dasharray="5 4"/>
-  <circle cx="${X(mi).toFixed(1)}" cy="${yv(ser[mi]).toFixed(1)}" r="3.4" fill="#0e1110" stroke="#efbb3c" stroke-width="2.4"/>
+  <circle cx="${X(mi).toFixed(1)}" cy="${yv(ser[mi]).toFixed(1)}" r="3.4" fill="rgba(8,18,14,.9)" stroke="#efbb3c" stroke-width="2.4"/>
   <path d="${bez(as)}" fill="none" stroke="#8e8e93" stroke-width="2"/><path d="${bez(as)}" fill="none" stroke="#4fae80" stroke-width="2.4" clip-path="url(#tneg)"/>
   <text x="${x0}" y="${H - 1}" font-size="9" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">0</text><text x="${x1}" y="${H - 1}" text-anchor="end" font-size="9" fill="#777" font-family="-apple-system,Helvetica Neue,sans-serif">${lab(dur)}</text></svg>`;
 }
@@ -1253,7 +1255,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 18 · 20.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 19 · 20.11.2026</p>`;
 }
 function dockHTML() {
   /* Wie Fotos: links Gruppe, rechts eine Hauptaktion */
@@ -1515,7 +1517,7 @@ function init() {
   const onSc = () => { const y = window.scrollY, was = document.body.classList.contains('scrolled'); document.body.classList.toggle('scrolled', y > 8); if (was !== (y > 8)) { moveInd(); setTimeout(moveInd, 160); setTimeout(moveInd, 340); } document.body.classList.toggle('scr2', y > 30); if (lg) { lg.style.filter = `blur(${Math.min(10, y / 10).toFixed(1)}px)`; lg.style.opacity = Math.max(.25, 1 - y / 220).toFixed(2); } }; window.addEventListener('scroll', onSc, { passive: true }); window.addEventListener('resize', moveInd); $('#tabs').addEventListener('transitionend', moveInd);
   document.querySelectorAll('#tabs button').forEach(b => { const t = b.textContent.trim(); b.innerHTML = '<span>' + t + '</span>'; });
   const TI = { fahrt: 'speed', fahrten: 'route', logbuch: 'note' };
-  document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', TI[b.dataset.t] ? ic(TI[b.dataset.t], 20) : '<svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'));
+  document.querySelectorAll('#tabs button').forEach(b => b.insertAdjacentHTML('afterbegin', TI[b.dataset.t] ? ic(TI[b.dataset.t], 20) : ic('grid', 20)));
   /* Wischen zwischen den Seiten: Inhalt folgt dem Finger (nur Mitte, nicht im Fahrmodus) */
   let sw = null; const V = $('#view');
   document.addEventListener('touchstart', e => { const t = e.touches[0]; sw = (e.touches.length === 1 && !e.target.closest('.mlmap,.zm') && !rec && !sliding && $('#sheet').hidden && t.clientX > 28 && t.clientX < innerWidth - 28) ? { x: t.clientX, y: t.clientY, at: Date.now(), h: null } : null; }, { passive: true });

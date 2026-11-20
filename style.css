@@ -690,7 +690,7 @@ body::before{position:fixed!important;inset:0!important;height:auto!important;mi
 /* Vorschau: iOS-Material-Logik
    Inhaltsebene (Kacheln) = Standard-Material: dünn, ruhig, feine helle Haarlinie
    Steuerebene (Tab-Leiste, Arbeit/Zuhause, Buttons) = Liquid Glass: Kapsel, Blur, Lichtkante */
-.card,.t{
+.card,.t,#drive .tiles div,#drive .cv{
   border:1px solid rgba(255,255,255,.16)!important;border-radius:10px!important;
   background:rgba(255,255,255,.045)!important;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.10)!important;
@@ -814,3 +814,32 @@ body::after{background:none!important}
 #upd button{border:0;border-radius:16px;padding:8px 14px;font-weight:700;background:#fed11a;color:#111}
 .vst i{background:#fed11a!important}.vst u{background:#c9a14a!important}
 .an-in{animation-duration:.9s!important}
+
+/* v18: Fahrtmodus wie alle Screens */
+#drive{background:url(app_bg.png) center/cover no-repeat!important}
+#drive .dbg{display:none!important}
+
+#drive .tiles div,#drive .cv{position:relative;border:0!important;border-radius:14px!important;background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03) 50%,rgba(255,255,255,.06))!important;-webkit-backdrop-filter:blur(20px) saturate(105%)!important;backdrop-filter:blur(20px) saturate(105%)!important}
+#drive{background:#050a08 url(app_bg.png) center/cover no-repeat!important}
+/* Fahrtmodus-Kacheln: exakt wie die App-Kacheln (Fläche, Schatten, Rand) */
+#drive .tiles div,#drive .cv{position:relative;isolation:isolate;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02) 50%,rgba(255,255,255,.04))!important;box-shadow:0 8px 24px rgba(0,0,0,.32),inset 0 1px 1px rgba(255,255,255,.22),inset 0 -1px 1px rgba(255,255,255,.08)!important}
+#drive .tiles div::before,#drive .cv::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;z-index:1;--rim:255,255,255;
+  background:linear-gradient(to bottom,rgba(0,0,0,.20) 0,rgba(0,0,0,.08) 40px,rgba(0,0,0,0) 60px),linear-gradient(to right,rgba(255,255,255,.10) 0,rgba(255,255,255,.85) 22px,rgba(255,255,255,.85) calc(100% - 22px),rgba(255,255,255,.10) 100%)!important;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;display:block!important}
+
+/* v18b: Tab-Icons mittig wenn klein, Starten größer, Zurück als Glas */
+body.scrolled #tabs button{display:flex;align-items:center;justify-content:center}
+body.scrolled #tabs button svg{margin:0}
+body.scrolled .drow .cta{height:54px!important;min-width:60px;padding:0 18px!important}
+.drow .cta.sec2{background:linear-gradient(160deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 45%,rgba(255,255,255,.08))!important;color:#fff!important;-webkit-backdrop-filter:blur(22px) saturate(105%)!important;backdrop-filter:blur(22px) saturate(105%)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.7),inset 0 -1px 0 rgba(255,255,255,.8),inset 1px 0 0 rgba(255,255,255,.28),inset -1px 0 0 rgba(255,255,255,.28)!important}
+.drow .cta.sec2 svg,.cta.sec2 svg{stroke:#fff!important}.drow .cta.sec2 span{color:#fff!important}
+
+/* v18c: Lesbarkeit auf Gold, runde Buttons in der kleinen Leiste */
+.t.hero .kh em,.t.hero .d,.t.hero .hxl span,.t.hero small{color:rgba(255,248,230,.88)!important}
+.t.hero small{color:rgba(255,248,230,.92)!important}
+.t.hero .hxl span{text-shadow:0 1px 3px rgba(20,18,8,.55)}
+body.scrolled .drow .cta{width:60px!important;height:60px!important;min-width:60px!important;padding:0!important;border-radius:50%!important;justify-content:center}
+body.scrolled .drow .cta svg{width:30px!important;height:30px!important}
+body.scrolled .drow .cta.sec2{width:54px!important;height:54px!important;min-width:54px!important}
+body.scrolled .drow .cta.sec2 svg{width:24px!important;height:24px!important}
+body.scrolled #tabs button{flex-direction:column;gap:0!important}body.scrolled #tabs button span{display:none!important}
