@@ -1,5 +1,5 @@
-const C='vuelta-v17';
-const F=['./','index.html','style.css','app.js','manifest.webmanifest','icon-180.png','icon-192.png','icon-512.png','logo.png','vuelta-logo.png','lack.svg'];
+const C='vuelta-v18';
+const F=['./','index.html','style.css','app.js','manifest.webmanifest','icon-180.png','icon-192.png','icon-512.png','vuelta-logo.png','lack.svg','app_bg.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)));self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))));self.clients.claim();});
 /* Netzwerk zuerst (Updates kommen sofort an), ohne Netz aus dem Cache */

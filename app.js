@@ -25,7 +25,8 @@ const IP = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   light: '<rect x="7.5" y="2.5" width="9" height="19" rx="4.5"/><circle cx="12" cy="7" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="17" r="1.6"/>',
   route: '<circle cx="6" cy="19" r="2.6"/><path d="M8.6 19h8.4a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.4"/><circle cx="18" cy="5" r="2.6"/>',
-  speed: '<path d="M4 17a8 8 0 1 1 16 0M12 17l4-6"/>',
+  speed: '<path d="M6.84 20.37A9 9 0 1 1 17.16 20.37"/><path d="M12 13l4.3-4.4"/><circle cx="12" cy="13" r="1.2" fill="#fff" stroke="none"/>',
+  locarrow: '<path d="M20 4L4 11l7 2 2 7z"/>',
   cal: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
   navi: '<path d="M12 3l7 17-7-4-7 4z"/>',
@@ -50,7 +51,7 @@ const ic = (n, s = 15) => (s -= 1,  `<svg width="${s}" height="${s}" viewBox="0 
 function defaults() {
   return {
     trips: [], logs: [],
-    settings: { pendelKm: 9, odoBase: 0, odoDate: new Date().toISOString(), tank: 7, needle: true, work: null, home: null, parked: null, tkKey: '', lastPos: null },
+    settings: { pendelKm: 9, odoBase: 0, odoDate: new Date().toISOString(), tank: 7, needle: true, work: null, home: null, parked: null, tkKey: '', lastPos: null, voice: false },
     reminders: [
       { id: uid(), name: 'Ölwechsel', everyKm: 10000, everyMonths: 12, lastOdo: 0, lastDate: today() },
       { id: uid(), name: 'Inspektion', everyKm: 10000, everyMonths: 12, lastOdo: 0, lastDate: today() },
@@ -59,6 +60,7 @@ function defaults() {
     ]
   };
 }
+const isCom = t => t.cat ? t.cat === 'pendel' : !!t.commute;
 let db;
 function load() {
   try { db = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch (e) { db = defaults(); }
@@ -282,12 +284,15 @@ async function startTrip() {
   render();
 }
 /* Losfahren erkannt: Aufnahme beginnt hier */
+function say(txt) {
+  try { if (!db.settings.voice || !('speechSynthesis' in window)) return; const u = new SpeechSynthesisUtterance(txt); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { }
+}
 function goTrip(pt) {
   rec.state = 'go'; rec.start = new Date(Date.now() - 4000).toISOString(); rec.m = 0; rec.zm = [0, 0, 0]; rec.route = []; rec.hist = []; rec.lastRt = null; rec.max = 0; rec.stop = 0; rec.stillSince = null;
   rec.startPos = { lat: pt.lat, lon: pt.lon };
   const w = db.settings.work, h = db.settings.home, near = q => q && hav(rec.startPos, q) < 1500;
   rec.target = near(h) && w ? w : near(w) && h ? h : (w && !h && !near(w)) ? w : (h && !w && !near(h)) ? h : null;
-  hap(2); toast('Aufnahme läuft');
+  hap(2); toast('Aufnahme läuft'); say('Fahrt gestartet');
 }
 /* Stillstand: nach 1 min Pause, nach weiteren 5 min automatisch beenden (Ende = Zeitpunkt des Anhaltens) */
 let autoT = null;
@@ -303,7 +308,7 @@ function autoTick() {
 function etaText() {
   if (!rec || rec.state === 'ready' || !rec.pos || !rec.target) return '';
   const rem = hav(rec.pos, rec.target) * 1.25 / 1000; if (rem < 0.15) return '';
-  const cm = db.trips.filter(t => t.commute && t.dur > 120 && t.km > 1), sd = cm.reduce((a, t) => a + t.dur, 0);
+  const cm = db.trips.filter(t => isCom(t) && t.dur > 120 && t.km > 1), sd = cm.reduce((a, t) => a + t.dur, 0);
   const v = sd ? cm.reduce((a, t) => a + t.km, 0) / sd * 3600 : 24;
   return 'Ankunft ' + fmtTime(new Date(Date.now() + rem / Math.max(8, v) * 3600e3));
 }
@@ -640,7 +645,7 @@ function monthSeries() {
 }
 function records() {
   const T = db.trips, r = {};
-  const cm = T.filter(t => t.commute && t.dur > 60).sort((a, b) => a.dur - b.dur)[0];
+  const cm = T.filter(t => isCom(t) && t.dur > 60).sort((a, b) => a.dur - b.dur)[0];
   r.fast = cm ? { v: Math.round(cm.dur / 60), d: fmtDate(cm.start) } : null;
   const lg = T.slice().sort((a, b) => b.km - a.km)[0];
   r.long = lg ? { v: nf(lg.km, 0), d: fmtDay(lg.start) } : null;
@@ -809,7 +814,7 @@ const myMin = (km, hr) => Math.max(1, Math.round(km / mySpeed(hr).v * 60));
 function etaLine() {
   const c = db.settings.pendelKm; if (!c) return '';
   const h = new Date().getHours(), dir = h < 12 ? 'zur Arbeit' : 'nach Hause', ms = mySpeed(h);
-  const cm = db.trips.filter(t => t.commute && t.dur > 120 && Math.abs(new Date(t.start).getHours() - h) <= 1 && Date.now() - new Date(t.start) < 120 * 864e5).map(t => t.dur / 60).sort((a, b) => a - b);
+  const cm = db.trips.filter(t => isCom(t) && t.dur > 120 && Math.abs(new Date(t.start).getHours() - h) <= 1 && Date.now() - new Date(t.start) < 120 * 864e5).map(t => t.dur / 60).sort((a, b) => a - b);
   const m = cm.length >= 4 ? Math.round(cm[Math.floor(cm.length / 2)]) : myMin(c * 1.15, h), lo = cm.length >= 4 ? Math.round(cm[Math.floor(cm.length * .2)]) : null, hi = cm.length >= 4 ? Math.round(cm[Math.floor(cm.length * .8)]) : null;
   return `<div class="eta">${ic('clock', 14)} Jetzt ${dir}: <b>${m} min</b>${lo != null && hi > lo ? ` <span>(${lo}–${hi})</span>` : ''}<small>${cm.length >= 4 ? 'aus deinen ' + cm.length + ' Fahrten um diese Uhrzeit' : ms.own ? 'aus deinem Ø von ' + Math.round(ms.v) + ' km/h' : 'mit deinem Faktor ' + nf(db.settings.etaF || 1, 2)}</small></div>`;
 }
@@ -861,7 +866,7 @@ function commuteDir(t) { const a = db.settings.home, b = db.settings.work; if (!
 let rvCache = null;
 function routeVariants() {
   const a = db.settings.home, b = db.settings.work; if (!a || !b) return [];
-  const T = db.trips.filter(t => t.commute && t.route && t.route.length > 8 && t.dur > 120 && Date.now() - new Date(t.start) < 120 * 864e5);
+  const T = db.trips.filter(t => isCom(t) && t.route && t.route.length > 8 && t.dur > 120 && Date.now() - new Date(t.start) < 120 * 864e5);
   const sig = T.length + '|' + (T[0] ? T[0].id : '') + '|' + a.lat + b.lat; if (rvCache && rvCache.sig === sig) return rvCache.v;
   const G = [];
   T.slice().sort((x, y) => new Date(y.start) - new Date(x.start)).forEach(t => {
@@ -879,12 +884,12 @@ function routeName(v, i) { const nm = (db.settings.routeNames || {})[v.key] || (
 function lightsYearCard() {
   const y = new Date().getFullYear(), T = db.trips.filter(t => new Date(t.start).getFullYear() === y), s = T.reduce((a, t) => a + (t.stop || 0), 0);
   if (s < 600) return '';
-  const hh = s / 3600, cm = T.filter(t => t.commute), sc = cm.reduce((a, t) => a + (t.stop || 0), 0), dur = T.reduce((a, t) => a + t.dur, 0);
-  const wk = []; for (let i = 7; i >= 0; i--) { const a0 = Date.now() - (i + 1) * 7 * 864e5, a1 = a0 + 7 * 864e5, x = db.trips.filter(t => { const q = +new Date(t.start); return t.commute && q >= a0 && q < a1; }); wk.push(x.length ? x.reduce((a, t) => a + (t.stop || 0), 0) / x.length / 60 : 0); }
+  const hh = s / 3600, cm = T.filter(t => isCom(t)), sc = cm.reduce((a, t) => a + (t.stop || 0), 0), dur = T.reduce((a, t) => a + t.dur, 0);
+  const wk = []; for (let i = 7; i >= 0; i--) { const a0 = Date.now() - (i + 1) * 7 * 864e5, a1 = a0 + 7 * 864e5, x = db.trips.filter(t => { const q = +new Date(t.start); return isCom(t) && q >= a0 && q < a1; }); wk.push(x.length ? x.reduce((a, t) => a + (t.stop || 0), 0) / x.length / 60 : 0); }
   return `<div class="g2"><div class="t hero lgt">${kh('light', 'An Ampeln', String(y))}<div class="hv"><b>${nf(hh, hh < 10 ? 1 : 0)}</b><small>Stunden</small></div><div class="hx">${miniCurve(wk, 150, 44)}<div class="hxl"><span>8 WO.</span><span>JETZT</span></div></div><div class="info">${Math.round(s / dur * 100)} % deiner Fahrzeit · Pendeln Ø ${Math.round(sc / Math.max(1, cm.length) / 60)} min pro Fahrt</div></div></div>`;
 }
 /* Pendlerpauschale: Arbeitstage mit Pendelfahrt × einfache Entfernung × 0,38 € (seit 2026 ab dem ersten Kilometer) */
-function commuteDays(y) { const S = new Set(); db.trips.forEach(t => { const d = new Date(t.start); if (t.commute && d.getFullYear() === y) S.add(t.start.slice(0, 10)); }); return [...S].sort(); }
+function commuteDays(y) { const S = new Set(); db.trips.forEach(t => { const d = new Date(t.start); if (isCom(t) && d.getFullYear() === y) S.add(t.start.slice(0, 10)); }); return [...S].sort(); }
 function pauschaleCard() {
   const y = new Date().getFullYear(), D = commuteDays(y), km = Math.round(db.settings.pendelKm || 0); if (!D.length || !km) return '';
   const eur = D.length * km * 0.38, m = new Date().getMonth() + 1, proj = Math.round(D.length / Math.max(1, (Date.now() - new Date(y, 0, 1)) / 864e5) * 365 * km * .38);
@@ -965,6 +970,23 @@ function routeCompareCard() {
   });
   return h;
 }
+function maintTiles() {
+  const odo = currentOdo(), L = db.reminders.filter(r => r.everyKm && /öl|insp/i.test(r.name)).slice(0, 2); if (!L.length) return '';
+  const tiles = L.map(r => {
+    const left = r.lastOdo + r.everyKm - odo, lv = left < 0 ? 2 : left < 500 ? 1 : 0, col = ['#ffffff', '#ff7a1a', '#e0242c'][lv];
+    const icon = ic(icn(r.name), 15).replace('stroke="#fff"', 'stroke="' + col + '"');
+    return `<div class="t mt"><div class="kh">${icon}<span>${esc(r.name)}</span></div><b${lv ? ` style="color:${col}"` : ''}>${left < 0 ? '−' : ''}${nf(Math.abs(Math.round(left)), 0)}<small> km</small></b><span class="d">${left < 0 ? 'überfällig' : 'noch'}</span></div>`;
+  }).join('');
+  return `<div class="sec">Wartung</div><div class="g2">${tiles}</div>`;
+}
+function costTiles() {
+  const L = db.logs.filter(l => (l.type === 'tank' || l.type === 'service') && l.eur > 0); if (!L.length) return '';
+  const first = L.map(l => l.date).sort()[0], inM = (d, m) => d.slice(0, 7) === m, m0 = today().slice(0, 7);
+  const eurA = L.reduce((a, l) => a + l.eur, 0), kmA = db.trips.filter(t => t.start.slice(0, 10) >= first).reduce((a, t) => a + t.km, 0);
+  const eurM = L.filter(l => inM(l.date, m0)).reduce((a, l) => a + l.eur, 0), kmM = db.trips.filter(t => inM(t.start, m0)).reduce((a, t) => a + t.km, 0);
+  const tile = (l, e, k) => `<div class="t">${kh('fuel', l)}<b>${k > 1 ? nf(e / k, 2) : '–'}<small> €/km</small></b><span class="d">${nf(e, 0)} € · ${nf(k, 0)} km</span></div>`;
+  return `<div class="sec">Kosten</div><div class="g2">${tile('Kosten pro km', eurA, kmA)}${tile('Dieser Monat', eurM, kmM)}</div>`;
+}
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
@@ -988,9 +1010,10 @@ function viewFahrt() {
     const pc = prev ? Math.round((cur - prev) / prev * 100) : 0;
     h += `<div class="sec">Highlights</div><div class="card hl">${kh('route', 'Kilometer')}<p>${prev ? (pc >= 0 ? `Diese Woche bist du bisher <b>${pc} % mehr</b> gefahren als bis zum gleichen Tag letzter Woche.` : `Diese Woche bist du bisher <b>${-pc} % weniger</b> gefahren als bis zum gleichen Tag letzter Woche.`) : 'Erste Woche mit Fahrten – weiter so.'}</p>${cmpBars(cur, prev, nf(cur, 0) + ' km · diese Woche', nf(prev, 0) + ' km · letzte Woche')}</div>`;
   }
+  h += maintTiles();
   if (due.length) { h += `<div class="sec">Fällig</div>`; due.forEach(x => h += remCard(x.r, x.s)); }
   const lt = db.trips.slice().sort((a, b) => b.start.localeCompare(a.start))[0];
-  if (lt) h += `<div class="sec">Letzte Fahrt</div><button class="card btn last" data-a="lasttrip" data-id="${lt.id}">${kh('navi', ftLabel(lt) || fmtDay(lt.start), (ftLabel(lt) ? fmtDay(lt.start) + ' · ' : '') + fmtTime(lt.start))}<div class="r"><b class="big">${nf(lt.km, 1)}<small> km</small></b></div><div class="r2"><span>${Math.round(lt.dur / 60)} min</span><span class="y">Ø ${lt.avg}</span><span>${lt.commute ? 'Pendeln' : 'Freizeit'}</span></div>${lt.zk ? zb(lt.zk) : ''}<span class="chev">›</span></button>`;
+  if (lt) h += `<div class="sec">Letzte Fahrt</div><button class="card btn last" data-a="lasttrip" data-id="${lt.id}">${kh('speed', ftLabel(lt) || fmtDay(lt.start), (ftLabel(lt) ? fmtDay(lt.start) + ' · ' : '') + fmtTime(lt.start))}<div class="r"><b class="big">${nf(lt.km, 1)}<small> km</small></b></div><div class="r2"><span>${Math.round(lt.dur / 60)} min</span><span class="y">Ø ${lt.avg}</span><span>${lt.commute ? 'Pendeln' : 'Freizeit'}</span></div>${lt.zk ? zb(lt.zk) : ''}<span class="chev">›</span></button>`;
   if (pk) h += `<div class="sec">Roller</div><button class="card btn" data-a="finden">${kh('pin', 'Roller finden', fmtTime(pk.t))}<span class="rt">geparkt ${fmtDay(pk.t)}</span><span class="chev">›</span></button>`;
   return h;
 }
@@ -1061,7 +1084,7 @@ function viewTanken() {
 function viewFahrten() {
   nameOldTrips();
   const all = db.trips, total = all.reduce((a, x) => a + x.km, 0);
-  const f = { all: () => true, commute: t => t.commute, free: t => !t.commute, cold: t => t.temp != null && t.temp <= 5 }[fFilter];
+  const f = { all: () => true, commute: t => isCom(t), free: t => !isCom(t), cold: t => t.temp != null && t.temp <= 5 }[fFilter];
   const t = all.filter(f), chip = (k, l, c = 'on') => `<button class="c ${fFilter === k ? c : ''}" data-a="ff" data-f="${k}">${l}</button>`;
   const wk = [7, 6, 5, 4, 3, 2, 1, 0].map(i => weekKm(i));
   const t0 = Date.now() - 56 * 864e5, cm = all.filter(x => x.commute && x.dur > 120 && new Date(x.start) > t0).map(x => ({ x: (new Date(x.start) - t0) / 864e5, y: Math.round(x.dur / 60) }));
@@ -1128,6 +1151,8 @@ function initTripMap() {
       map.addLayer({ id: 'rc', type: 'line', source: 'r', paint: { 'line-color': '#000', 'line-width': 7, 'line-opacity': .6 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
       map.addLayer({ id: 'rl', type: 'line', source: 'r', paint: { 'line-color': '#efbb3c', 'line-width': 3.4 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
       map.addSource('se', { type: 'geojson', data: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { c: '#3a9466' }, geometry: { type: 'Point', coordinates: co[0] } }, { type: 'Feature', properties: { c: '#ff2d2d' }, geometry: { type: 'Point', coordinates: co[co.length - 1] } }] } });
+      const stp = (t.stops || []).filter(q => q && q.length >= 2).map(q => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [q[1], q[0]] } }));
+      if (stp.length) { map.addSource('st', { type: 'geojson', data: { type: 'FeatureCollection', features: stp } }); map.addLayer({ id: 'st', type: 'circle', source: 'st', paint: { 'circle-radius': 4.2, 'circle-color': '#000', 'circle-stroke-color': '#fed11a', 'circle-stroke-width': 1.8 } }); }
       map.addLayer({ id: 'se', type: 'circle', source: 'se', paint: { 'circle-radius': 5.5, 'circle-color': ['get', 'c'], 'circle-stroke-color': '#000', 'circle-stroke-width': 2 } });
       box.classList.add('ok');
     });
@@ -1154,13 +1179,15 @@ function viewTrip() {
   const tile = (i, l, v, u) => `<div class="t">${kh(i, l)}<b>${v}${u ? `<small> ${u}</small>` : ''}</b></div>`;
   const zr = [['city', 'Stadt'], ['land', 'Land'], ['bab', 'Autobahn']].map((z, i) => `<div class="zr"><span>${ic(z[0], 17)}</span><i style="flex:1"><u style="width:${Math.round(zk[i] / zs * 100)}%;background:${ZCOL[i]}"></u></i><b>${nf(zk[i], 1)} km</b><small>${Math.round(zk[i] / zs * 100)} %</small></div>`).join('');
   const map = tripMap(t.route);
-  return `<div class="g2"><div class="t hero">${kh('navi', ftLabel(t) || fmtDay(t.start), (ftLabel(t) ? fmtDay(t.start) + ' · ' : '') + fmtTime(t.start) + ' – ' + fmtTime(t.end))}<div class="hv"><b>${nf(t.km, 1)}</b><small>km · ${fmtDur(t.dur)}</small></div><div class="info">${ic(t.commute ? 'work' : 'route', 13)} ${t.commute ? 'Pendeln' : 'Freizeit'}${t.temp != null ? ` · ${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(t.temp, 0)} °C ${w.t}` : ''}</div></div>
+  return `<div class="g2"><div class="t hero">${kh('speed', ftLabel(t) || fmtDay(t.start), (ftLabel(t) ? fmtDay(t.start) + ' · ' : '') + fmtTime(t.start) + ' – ' + fmtTime(t.end))}<div class="hv"><b>${nf(t.km, 1)}</b><small>km · ${fmtDur(t.dur)}</small></div><div class="info">${ic(isCom(t) ? 'work' : 'route', 13)} ${isCom(t) ? 'Pendeln' : 'Freizeit'}${t.temp != null ? ` · ${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(t.temp, 0)} °C ${w.t}` : ''}</div></div>
   ${tile('speed', 'Ø Tempo', t.avg, 'km/h')}${tile('bolt', 'Höchstes Tempo', t.max, 'km/h')}</div>
   <div class="sec">Verlauf</div><div class="card">${kh('speed', 'Tempo & Beschleunigung', 'Ø ' + t.avg + ' km/h')}${tripCurve(ser, t.avg, t.dur)}</div>
   ${map ? `<div class="sec">Route</div><div class="card mapc">${map}</div>` : ''}
   <div class="sec">Strecke nach Tempo</div><div class="card">${zr}</div>
   <div class="sec">Sonst noch</div>
   <div class="g2">${tile('clock', 'Stillstand', t.stop != null ? Math.round(t.stop / 60) : '–', 'min')}${tile('speed', 'Ø in Bewegung', mvAvg, 'km/h')}${tile('drop', 'Verbrauch ≈', nf(t.km * cons / 100, 2), 'l')}${t.wind != null ? tile('wind', 'Wind · Böen ' + t.gust, t.wind, 'km/h') : tile('route', 'Ø inkl. Stopps', nf(t.km / (t.dur / 3600), 0), 'km/h')}</div>
+  <div class="sec">Kategorie</div>
+  <div class="g2"><button class="pill${isCom(t) ? ' sel' : ''}" data-a="setcat" data-id="${t.id}" data-v="pendel">${ic('work', 15)} Pendel</button><button class="pill${isCom(t) ? '' : ' sel'}" data-a="setcat" data-id="${t.id}" data-v="freizeit">${ic('route', 15)} Freizeit</button></div>
   <button class="ghost" style="margin-top:18px;font-size:11px;letter-spacing:.14em" data-a="deltrip" data-id="${t.id}">Fahrt löschen</button>`;
 }
 const LT = { tank: ['Tanken', 'fuel'], service: ['Service', 'wrench'], reifen: ['Reifendruck', 'tire'], notiz: ['Notiz', 'note'] };
@@ -1190,7 +1217,7 @@ function viewMehr() {
   const R = records(), rt = (i, v, u, l, hero) => `<div class="t rk${hero ? ' hero' : ''}">${kh(i, l)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span class="d">${v ? v.d : ''}</span></div>`;
   const op = db.settings.odoPhoto;
   const T = db.trips, d28 = Date.now() - 28 * 864e5, d56 = Date.now() - 56 * 864e5, inR = (t, a, b) => { const x = +new Date(t.start); return x >= a && x < b; };
-  const cmA = T.filter(t => t.commute && t.dur > 120 && inR(t, d28, Infinity)), cmB = T.filter(t => t.commute && t.dur > 120 && inR(t, d56, d28)), am = a => a.length ? Math.round(a.reduce((x, t) => x + t.dur, 0) / a.length / 60) : 0;
+  const cmA = T.filter(t => isCom(t) && t.dur > 120 && inR(t, d28, Infinity)), cmB = T.filter(t => isCom(t) && t.dur > 120 && inR(t, d56, d28)), am = a => a.length ? Math.round(a.reduce((x, t) => x + t.dur, 0) / a.length / 60) : 0;
   const kA = T.filter(t => inR(t, d28, Infinity)).reduce((a, t) => a + t.km, 0) / 4, kB = T.filter(t => inR(t, d56, d28)).reduce((a, t) => a + t.km, 0) / 4;
   const vA = T.filter(t => inR(t, d28, Infinity) && t.avg), vB = T.filter(t => inR(t, d56, d28) && t.avg), av = a => a.length ? Math.round(a.reduce((x, t) => x + t.avg, 0) / a.length) : 0;
   const cs = consumption(), cL = cs.length ? cs[cs.length - 1].l100 : 0, cP = cs.length > 1 ? cs[cs.length - 2].l100 : cL;
@@ -1206,7 +1233,7 @@ function viewMehr() {
   <div class="card">${kh('cloud', 'Temperatur', '8 Wochen')}${rangeChart(wkGroups(T, x => x.temp != null ? Math.round(x.temp) : null), temps.length ? temps.reduce((a, p) => a + p.y, 0) / temps.length : 0, '°C')}</div>
   <div class="sec">Rekorde</div>
   <div class="g2">${rt('clock', R.fast, 'min', 'Schnellste Pendelfahrt')}${rt('route', R.long, 'km', 'Längste Tour', 1)}${rt('speed', R.top, 'km/h', 'Höchstes Tempo')}${rt('cal', R.week, 'km', 'Beste Woche')}${rt('bolt', R.streak, 'Tage', 'Längste Serie')}${rt('fuel', R.cons, 'l/100', 'Bester Verbrauch')}</div>
-  <div class="sec">Erinnerungen</div>
+  ${costTiles()}<div class="sec">Erinnerungen</div>
   ${db.reminders.map(r => remCard(r, reminderStatus(r))).join('')}
   <button class="sm" data-a="newrem">+ Erinnerung</button>
   <div class="sec">Steuer</div>
@@ -1216,6 +1243,7 @@ function viewMehr() {
   <div class="sec">Einstellungen</div>
   <div class="card">
     <div class="srow"><span>Kilometerstand</span><em>${nf(currentOdo(), 0)} km</em></div><div class="srow"><span>Pendelstrecke</span><em>${nf(db.settings.pendelKm, 1)} km</em></div><div class="srow"><span>Tankgröße</span><em>${nf(db.settings.tank, 1)} l</em></div><div class="srow"><span>Nadel im Tacho</span><em>${db.settings.needle ? 'An' : 'Aus'}</em></div><div class="srow"><span>Tankerkönig-Schlüssel</span><em>${db.settings.tkKey ? 'Gesetzt' : '–'}</em></div>
+    <div class="srow"><span>Sprachansage beim Start</span><button class="sm" data-a="voice">${db.settings.voice ? 'An' : 'Aus'}</button></div>
     <div style="margin-top:12px;display:flex;gap:8px"><button class="sm" data-a="settings">Ändern</button><button class="sm" data-a="odophoto">${ic('speed', 13)} Tacho fotografieren</button></div>
     ${op ? `<div class="odoph"><img src="${op.img}" alt="Tacho"><span class="l">Abgleich ${fmtDate(op.t)} · ${nf(op.odo || 0, 0)} km</span></div>` : ''}
   </div>
@@ -1225,7 +1253,7 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 16 · 19.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 18 · 20.11.2026</p>`;
 }
 function dockHTML() {
   /* Wie Fotos: links Gruppe, rechts eine Hauptaktion */
@@ -1234,12 +1262,21 @@ function dockHTML() {
   if (tab === 'fahrt') {
     if (sub === 'finden') return back;
     if (sub === 'tanken') return stations && stations.list && stations.list.length ? row(`<div class="grp"><button data-a="back">${ic('back', 18)}<span>Zurück</span></button></div>`, 'route', 'Route', 'navi') : back;
-    return row(`<div class="grp"><button data-a="navwork">${ic('work', 18)}<span>Arbeit</span></button><button data-a="navhome">${ic('home', 18)}<span>Zuhause</span></button></div>`, 'start', 'Starten', 'vespa', 'go');
+    return row(`<div class="rb"><button data-a="navwork" aria-label="Arbeit">${ic('work', 23)}</button><button data-a="navhome" aria-label="Zuhause">${ic('home', 23)}</button><button data-a="navfree" aria-label="Navi">${ic('locarrow', 23)}</button></div>`, 'start', 'Starten', 'vespa', 'go');
   }
   if (tab === 'fahrten' && sub === 'trip') return back;
   if (tab === 'fahrten') return row('', 'manualtrip', 'Nachtragen', 'plus');
   if (tab === 'logbuch') return row('', 'chooser', 'Eintrag', 'plus');
   return '';
+}
+/* Neue Version verfügbar: Hinweis oben mit Neu-laden-Button */
+function updBar() {
+  try { if (rec && rec.state === 'go') return; } catch (e) { }
+  if (document.getElementById('upd')) return;
+  const b = document.createElement('div'); b.id = 'upd';
+  b.innerHTML = '<span>Neue Version verfügbar</span><button type="button">Neu laden</button>';
+  b.querySelector('button').onclick = () => location.reload();
+  document.body.appendChild(b);
 }
 const ORD = ['fahrt', 'fahrten', 'logbuch', 'mehr']; let sliding = false;
 function slideTo(nt, dir, back) {
@@ -1264,30 +1301,34 @@ let animKey = '', animIO = null;
 const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 function animEl(card, delay) {
   if (card.dataset.an) return; card.dataset.an = '1';
-  card.style.animationDelay = delay + 'ms'; card.classList.add('an-in');
+  card.style.opacity = ''; card.style.animationDelay = delay + 'ms'; card.classList.add('an-in');
   card.querySelectorAll('svg path, svg polyline, svg line').forEach((p, i) => {
     const sw = p.getAttribute('stroke'), da = p.getAttribute('stroke-dasharray') || p.style.strokeDasharray;
     if (!sw || sw === 'none' || da || p.closest('.ic, .rl, button.c')) return;
     let L = 0; try { L = p.getTotalLength(); } catch (e) { } if (!L || L < 6) return;
     p.style.transition = 'none'; p.style.strokeDasharray = L + 'px ' + L + 'px'; p.style.strokeDashoffset = L + 'px'; void getComputedStyle(p).strokeDashoffset;
-    const tr = `stroke-dashoffset ${Math.min(900, 380 + L * 1.2)}ms cubic-bezier(.3,.7,.2,1) ${delay + 80 + Math.min(i, 12) * 25}ms`;
+    const tr = `stroke-dashoffset ${Math.min(1700, 750 + L * 2.2)}ms cubic-bezier(.3,.7,.2,1) ${delay + 120 + Math.min(i, 12) * 45}ms`;
     requestAnimationFrame(() => { p.style.transition = tr; p.style.strokeDashoffset = '0px'; });
-    setTimeout(() => { p.style.strokeDasharray = ''; p.style.strokeDashoffset = ''; p.style.transition = ''; }, delay + 1500);
+    setTimeout(() => { p.style.strokeDasharray = ''; p.style.strokeDashoffset = ''; p.style.transition = ''; }, delay + 3000);
   });
   card.querySelectorAll('svg rect').forEach((r, i) => { const h = +r.getAttribute('height'), w = +r.getAttribute('width'); if (!(h > 2 && w > 2) || r.getAttribute('fill') === 'none' || /rgba\(255,255,255,\.0/.test(r.getAttribute('fill') || '')) return;
     r.style.transition = 'none'; r.style.transformBox = 'fill-box'; r.style.transformOrigin = h > w ? '50% 100%' : '0 50%'; r.style.transform = h > w ? 'scaleY(0)' : 'scaleX(0)'; void getComputedStyle(r).transform;
-    const tr = `transform 600ms cubic-bezier(.3,.7,.2,1) ${delay + 100 + Math.min(i, 16) * 22}ms`; requestAnimationFrame(() => { r.style.transition = tr; r.style.transform = ''; }); });
+    const tr = `transform 1050ms cubic-bezier(.3,.7,.2,1) ${delay + 140 + Math.min(i, 16) * 40}ms`; requestAnimationFrame(() => { r.style.transition = tr; r.style.transform = ''; }); });
 }
 function animView() {
   const key = tab + '|' + (sub || '') + '|' + (sub === 'trip' ? tripSel : '');
   const cards = [...document.querySelectorAll('#view .card, #view .t, #view .tiles > div')];
-  if (reduceMotion() || (key === animKey && Date.now() - animView.at > 1500)) { cards.forEach(c => c.dataset.an = '1'); return; }
+  if (reduceMotion() || (key === animKey && Date.now() - animView.at > 1500)) { cards.forEach(c => { c.dataset.an = '1'; c.style.opacity = ''; }); return; }
+  /* noch nicht erschienene Elemente sind unsichtbar, bis sie ins Bild kommen */
+  cards.forEach(c => { if (!c.dataset.an) c.style.opacity = '0'; });
+  clearTimeout(animView.w);
+  if (sliding) { animView.w = setTimeout(animView, 90); return; }   /* erst nach dem Seitenwechsel */
   if (key !== animKey) animView.at = Date.now(); animKey = key; if (animIO) animIO.disconnect();
   let n = 0;
-  const base = sliding ? 200 : 0;
-  animIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { animIO.unobserve(e.target); animEl(e.target, base + (n++ % 6) * 40); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
+  const base = 0;
+  animIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { animIO.unobserve(e.target); animEl(e.target, base + (n++ % 5) * 90); } }), { rootMargin: '0px 0px -6% 0px' }) : null;
   cards.forEach(c => animIO ? animIO.observe(c) : animEl(c, 0));
-  setTimeout(() => { n = 0; }, 700);
+  setTimeout(() => { n = 0; }, 1000);
 }
 function render() {
   const v = $('#view'), y = window.scrollY;
@@ -1366,6 +1407,9 @@ const actions = {
   tkmore() { if (stations) stations.all = true; render(); },
   route(el) { const s = stations && stations.list && stations.list[+el.dataset.i || 0]; if (s) location.href = 'https://maps.apple.com/?daddr=' + s.lat + ',' + s.lon + '&dirflg=d'; },
   navwork() { navTo('work', 'Arbeit'); }, navhome() { navTo('home', 'Zuhause'); },
+  navfree() { openSheet('Navigation', [{ n: 'dest', l: 'Ziel (Adresse oder Ort), Start ist dein Standort', v: '' }], o => { const q = (o.dest || '').trim(); if (!q) return toast('Ziel fehlt'); location.href = 'https://maps.apple.com/?dirflg=d&daddr=' + encodeURIComponent(q); }, 'Los'); },
+  setcat(el) { const t = db.trips.find(x => x.id === el.dataset.id); if (!t) return; t.cat = el.dataset.v; save(); hap(1); render(); toast(t.cat === 'pendel' ? 'Pendel' : 'Freizeit'); },
+  voice() { db.settings.voice = !db.settings.voice; save(); if (db.settings.voice) say('Sprachansage an'); render(); },
   setwork() { setPlace('work', 'Arbeit'); }, sethome() { setPlace('home', 'Zuhause'); },
   ff(el) { fFilter = el.dataset.f; render(); }, lf(el) { lFilter = el.dataset.f; render(); },
   chooser() {
@@ -1491,7 +1535,13 @@ function init() {
     if (go && !sub && i >= 0 && i < ORD.length) return slideTo(ORD[i], dx < 0 ? 1 : -1);
     V.style.transition = 'transform .25s cubic-bezier(.2,.8,.2,1), opacity .25s'; V.style.transform = ''; V.style.opacity = '';
   }, { passive: true });
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => { });
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    const hadSw = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      if (hadSw) navigator.serviceWorker.addEventListener('controllerchange', updBar);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => { }); });
+    }).catch(() => { });
+  }
   render();
 }
 function load2() { db.reminders = db.reminders || []; db.settings = Object.assign(defaults().settings, db.settings || {}); save(); render(); }
