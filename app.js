@@ -43,6 +43,8 @@ const IP = {
   play: '<path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  glove: '<path d="M7 21v-4.5L4.6 11.8c-.5-1 .9-1.9 1.7-1.1L8 12V5.2c0-1.1 1.6-1.1 1.6 0V10h.4V3.8c0-1.1 1.6-1.1 1.6 0V10h.4V4.6c0-1.1 1.6-1.1 1.6 0V10h.4V6.4c0-1.1 1.6-1.1 1.6 0V15c0 3-1.5 4.2-3 4.7V21z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M10.3 2.8h3.4l.5 2.4 1.7.7 2.1-1.3 2.4 2.4-1.3 2.1.7 1.7 2.4.5v3.4l-2.4.5-.7 1.7 1.3 2.1-2.4 2.4-2.1-1.3-1.7.7-.5 2.4h-3.4l-.5-2.4-1.7-.7-2.1 1.3-2.4-2.4 1.3-2.1-.7-1.7-2.4-.5v-3.4l2.4-.5.7-1.7-1.3-2.1 2.4-2.4 2.1 1.3 1.7-.7z"/>',
   work: '<rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2M3 13h18M11 13v1.5h2V13"/>',
   home: '<path d="M3.5 11L12 4l8.5 7M6 9.5V20h12V9.5M10 20v-5.5h4V20"/>'
 };
@@ -52,7 +54,7 @@ const ic = (n, s = 15) => (s -= 1,  `<svg width="${s}" height="${s}" viewBox="0 
 function defaults() {
   return {
     trips: [], logs: [],
-    settings: { pendelKm: 9, odoBase: 0, odoDate: new Date().toISOString(), tank: 7, needle: true, work: null, home: null, parked: null, tkKey: '', lastPos: null, voice: false },
+    settings: { pendelKm: 9, odoBase: 0, odoDate: new Date().toISOString(), tank: 7, needle: true, work: null, home: null, parked: null, tkKey: '', lastPos: null, voice: false, glove: null },
     reminders: [
       { id: uid(), name: 'Ölwechsel', everyKm: 10000, everyMonths: 12, lastOdo: 0, lastDate: today() },
       { id: uid(), name: 'Inspektion', everyKm: 10000, everyMonths: 12, lastOdo: 0, lastDate: today() },
@@ -67,6 +69,7 @@ function load() {
   try { db = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch (e) { db = defaults(); }
   db.trips = db.trips || []; db.logs = db.logs || []; db.reminders = db.reminders || [];
   db.settings = Object.assign(defaults().settings, db.settings || {});
+  if (!db.settings.glove) db.settings.glove = { used: 63 * 60 };   /* Startwert: 30 + 33 min */
   const op = db.settings.odoPhoto; if (op && (!op.t || Date.now() - new Date(op.t) > 864e5)) { delete db.settings.odoPhoto; try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { } }
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Speichern fehlgeschlagen'); } }
@@ -277,7 +280,7 @@ function onPos(p) {
 }
 async function startTrip() {
   if (!navigator.geolocation) return toast('Kein GPS verfügbar');
-  rec = { state: 'ready', route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null, stillSince: null, target: null };
+  rec = { state: 'ready', route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null, stillSince: null, target: null, glove: true, gUntil: Date.now() + 9000 };
   clearInterval(autoT); autoT = setInterval(autoTick, 1000); setTimeout(pricePing, 4000);
   watchId = navigator.geolocation.watchPosition(onPos, e => toast('GPS: ' + (e.code === 1 ? 'Zugriff verweigert' : 'kein Signal')), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
   try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (e) { }
@@ -294,6 +297,7 @@ function goTrip(pt) {
   rec.startPos = { lat: pt.lat, lon: pt.lon };
   const w = db.settings.work, h = db.settings.home, near = q => q && hav(rec.startPos, q) < 1500;
   rec.target = near(h) && w ? w : near(w) && h ? h : (w && !h && !near(w)) ? w : (h && !w && !near(h)) ? h : null;
+  { const tw = rec.weather || lastWeather; if (tw && tw.temp >= 15 && !rec.gTouched) { rec.glove = false; rec.gWarm = Math.round(tw.temp); } rec.gUntil = Date.now() + 7000; }
   hap(2); toast('Aufnahme läuft'); say('Fahrt gestartet');
 }
 /* Stillstand: nach 1 min Pause, nach weiteren 5 min automatisch beenden (Ende = Zeitpunkt des Anhaltens) */
@@ -343,6 +347,7 @@ function stopTrip(endAt) {
     max: Math.round(r.max), avg: Math.round(km / (dur / 3600)), temp: r.weather ? r.weather.temp : null, code: r.weather ? r.weather.code : null,
     commute: km > pk * 0.6 && km < pk * 1.6, zk: r.zm.map(x => Math.round(x / 10) / 100), stops: (r.stops || []).slice(0, 200), spark: sp
   };
+  if (r.glove && db.settings.glove) db.settings.glove.used += Math.round(dur);
   db.trips.unshift(trip); save(); toast('Fahrt gespeichert: ' + nf(km) + ' km'); render();
   nameTrip(trip).then(() => render());
 }
@@ -458,7 +463,7 @@ function curveSVG(avg) {
   if (avg != null) s += `<line x1="${x0}" y1="${yv(avg).toFixed(1)}" x2="${x1}" y2="${yv(avg).toFixed(1)}" stroke="rgba(255,255,255,.6)" stroke-width="1.1" stroke-dasharray="4 4"/>`;
   return s + `<line x1="${x1}" y1="1" x2="${x1}" y2="63" stroke="#b3202a" stroke-width="1.4"/></svg>`;
 }
-const commuteTime = () => { const d = new Date(), h = d.getHours(), wk = d.getDay() >= 1 && d.getDay() <= 5; return wk && ((h >= 5 && h < 10) || (h >= 15 && h < 20)); };
+const commuteTime = () => { const d = new Date(), h = d.getHours(), wk = d.getDay() >= 1 && d.getDay() <= 5; return wk && h >= 5 && h < 19; };
 function svcInfo(nm) {
   const r = db.reminders.find(x => x.name.toLowerCase().startsWith(nm.toLowerCase().slice(0, 5))); if (!r) return null;
   const s = reminderStatus(r), parts = [];
@@ -474,6 +479,7 @@ function hap(n = 1) {
 }
 function fitDrive() {
   const el = $('#drive'), s = $('#dsv'); if (!s) return;
+  if (matchMedia('(orientation:landscape) and (max-height:520px)').matches) { try { const q = s.getBBox(), m = Math.max(q.width, q.height) + 6, cx = q.x + q.width / 2, cy = q.y + q.height / 2; s.setAttribute('viewBox', (cx - m / 2) + ' ' + (cy - m / 2) + ' ' + m + ' ' + m); } catch (e) { } s.style.width = Math.min(innerHeight - 4, innerWidth * 0.5) + 'px'; s.style.height = 'auto'; return; }
   let w = innerWidth - 4; s.style.width = w + 'px'; s.style.height = 'auto';
   for (let i = 0; i < 12 && el.scrollHeight > el.clientHeight + 1 && w > 220; i++) { w -= Math.max(6, Math.ceil((el.scrollHeight - el.clientHeight) * 1.05)); s.style.width = w + 'px'; }
 }
@@ -490,17 +496,108 @@ function mountDrive() {
   <div class="tiles fade" id="dTiles"></div></div>
 <div class="endw endb"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><svg class="haz" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#ff2d2d" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3.2 22 20.5H2z"/><path d="M12 9.5 16.6 17.6H7.4z" stroke-width="1.6"/></svg></div><small>2 S HALTEN · BEENDEN</small></div>
   <img class="dlogo" src="vuelta-logo.png" alt="Vuelta">
+  <div id="dMap"></div>
+  <button id="gchip" class="gchip" type="button"></button>
+  <div class="navc" id="navc" hidden></div><div class="arrc" id="arrc" hidden></div>
 `;
   $('#dSvc').addEventListener('click', e => { const b = e.target.closest('.ib'); if (!b) return; const nm = b.dataset.sv, pop = $('#dPop'); clearTimeout(drv.pt); if (drv.pop === nm) { drv.pop = null; pop.hidden = true; return; } drv.pop = nm; const inf = svcInfo(nm); pop.innerHTML = `<b>${nm}</b><span>${inf ? inf.text : ''}</span>`; pop.hidden = false; drv.pt = setTimeout(() => { drv.pop = null; pop.hidden = true; }, 6000); });
   $('#dBox').appendChild($('#dSvc'));
-  buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
+  G('gchip').addEventListener('click', e => { e.stopPropagation(); if (!rec) return; rec.glove = !rec.glove; rec.gTouched = true; rec.gWarm = 0; rec.gUntil = Date.now() + 4000; hap(1); gloveChip(); });
+  driveMap(); navStart(); buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
   const btn = $('#endBtn'), off = () => { if (drv.hold) { drv.hold = 0; drv.hs = 0; $('#endBtn').style.transform = ''; } };
   btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drv.hold = performance.now(); drv.hs = 0; hap(1); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => btn.addEventListener(n, off));
   el.addEventListener('pointerdown', () => { if (!drv.introDone) drv.t0 -= 10000; });
   drv.raf = requestAnimationFrame(driveFrame);
 }
+/* Querformat: 3D-Karte mit Route und Position */
+function driveMap() {
+  const box = G('dMap'); if (!box || !matchMedia('(orientation:landscape) and (max-height:520px)').matches) return;
+  const tr = db.trips.filter(t => t.route && t.route.length > 1).sort((a, b) => +new Date(b.start) - +new Date(a.start))[0];
+  const c0 = (rec && rec.pos) || db.settings.lastPos || (tr ? { lat: tr.route[0][0], lon: tr.route[0][1] } : { lat: 52.52, lon: 13.4 });
+  loadMapLibre().then(() => {
+    if (!drv || !document.body.contains(box)) return;
+    const map = new maplibregl.Map({ container: box, style: 'https://tiles.openfreemap.org/styles/dark', center: [c0.lon, c0.lat], zoom: 15.5, pitch: 60, bearing: 0, interactive: false, attributionControl: false });
+    drv.map = map;
+    map.on('load', () => {
+      if (tr) { map.addSource('rt', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: tr.route.map(p => [p[1], p[0]]) } } }); map.addLayer({ id: 'rt', type: 'line', source: 'rt', paint: { 'line-color': '#fed11a', 'line-width': 4, 'line-opacity': .9 }, layout: { 'line-cap': 'round', 'line-join': 'round' } }); }
+      map.addSource('me', { type: 'geojson', data: { type: 'Point', coordinates: [c0.lon, c0.lat] } });
+      map.addLayer({ id: 'me', type: 'circle', source: 'me', paint: { 'circle-radius': 7, 'circle-color': '#fff', 'circle-stroke-color': '#fed11a', 'circle-stroke-width': 3 } });
+    });
+    drv.mapT = setInterval(() => { try { const p = rec && rec.pos; if (!p || !map.getSource('me')) return; map.getSource('me').setData({ type: 'Point', coordinates: [p.lon, p.lat] }); map.easeTo({ center: [p.lon, p.lat], duration: 900 }); } catch (e) { } }, 1000);
+  }).catch(() => { });
+}
+
+/* Handschuh-Kapsel: erscheint beim Start kurz, danach weg */
+function gloveChip() {
+  const c = G('gchip'); if (!c || !rec) return;
+  const on = !!rec.glove, show = Date.now() < (rec.gUntil || 0);
+  const t = on ? 'Handschuhe an' : 'Handschuhe aus' + (rec.gWarm ? ' · ' + rec.gWarm + ' °C' : '');
+  if (c.dataset.t !== t) { c.dataset.t = t; c.innerHTML = ic('glove', 19) + '<span>' + t + '</span>'; }
+  c.classList.toggle('off', !on); c.classList.toggle('show', show);
+}
+/* Querformat: nächste Abbiegung und Ankunft aus der bekannten Strecke */
+const brg = (a, b) => bearing(a, b);
+const angD = (a, b) => ((b - a + 540) % 360) - 180;
+function refRoute() {
+  const p = rec && rec.pos; if (!p) return null;
+  const cands = db.trips.filter(t => t.route && t.route.length > 4).sort((a, b) => +new Date(b.start) - +new Date(a.start)).slice(0, 40);
+  for (const t of cands) {
+    const r = t.route.map(LL); let bi = -1, bd = 1e9;
+    r.forEach((q, i) => { const d = hav(p, q); if (d < bd) { bd = d; bi = i; } });
+    if (bd > 80) continue;
+    for (const dir of [1, -1]) {
+      const a = dir > 0 ? r : r.slice().reverse(), i = dir > 0 ? bi : r.length - 1 - bi;
+      if (i >= a.length - 2) continue;
+      if (rec.heading != null && Math.abs(angD(rec.heading, brg(a[i], a[Math.min(a.length - 1, i + 2)]))) > 70) continue;
+      return { pts: a, i, stops: t.stops };
+    }
+  }
+  return null;
+}
+function nextTurn(R) {
+  const a = R.pts; let dist = 0, rem = 0;
+  for (let k = R.i; k < a.length - 1; k++) rem += hav(a[k], a[k + 1]);
+  for (let j = R.i + 1; j < a.length - 2; j++) {
+    dist += hav(a[j - 1], a[j]);
+    const b1 = brg(a[Math.max(R.i, j - 2)], a[j]), b2 = brg(a[j], a[Math.min(a.length - 1, j + 2)]), d = angD(b1, b2);
+    if (Math.abs(d) >= 40) return { m: dist, dir: d > 0 ? 'right' : 'left', pt: a[j], rem };
+    if (dist > 1500) break;
+  }
+  return { m: null, rem };
+}
+const arrowSVG = d => d === 'right' ? '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V11a3 3 0 0 1 3-3h7"/><path d="M13 4l4 4-4 4"/></svg>' : '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20V11a3 3 0 0 0-3-3H7"/><path d="M11 4 7 8l4 4"/></svg>';
+function streetAt(pt) {
+  try {
+    const m = drv && drv.map; if (!m || !m.loaded()) return '';
+    const q = m.project([pt.lon, pt.lat]), fs = m.queryRenderedFeatures([[q.x - 22, q.y - 22], [q.x + 22, q.y + 22]]);
+    for (const f of fs) { const n = f.properties && (f.properties['name:de'] || f.properties.name); if (n && /transportation|road|highway/i.test((f.sourceLayer || '') + f.layer.id)) return n; }
+  } catch (e) { }
+  return '';
+}
+function navStart() {
+  if (!matchMedia('(orientation:landscape) and (max-height:520px)').matches) return;
+  drv.navT = setInterval(() => {
+    try {
+      const nc = G('navc'), ac = G('arrc'); if (!nc || !rec || rec.state === 'ready') { if (nc) nc.hidden = ac.hidden = true; return; }
+      const R = refRoute(); if (!R) { nc.hidden = ac.hidden = true; return; }
+      const T = nextTurn(R);
+      if (T.m != null) {
+        const mm = T.m < 100 ? Math.max(10, Math.round(T.m / 10) * 10) : Math.round(T.m / 50) * 50, nm = streetAt({ lat: T.pt.lat, lon: T.pt.lon });
+        nc.innerHTML = arrowSVG(T.dir) + `<div><b>${mm} m</b>${nm ? '<span>' + esc(nm) + '</span>' : ''}</div>`; nc.hidden = false;
+        if (db.settings.voice) { const k = T.m <= 120 ? 'a' : T.m <= 320 ? 'b' : ''; if (k && drv.said !== k + Math.round(T.pt.lat * 1e5)) { drv.said = k + Math.round(T.pt.lat * 1e5); say('In ' + (k === 'a' ? '100' : '300') + ' Metern ' + (T.dir === 'left' ? 'links' : 'rechts') + (nm ? ' in die ' + nm : '')); } }
+      } else nc.hidden = true;
+      const cm = db.trips.filter(t => isCom(t) && t.dur > 120 && t.km > 1), sd = cm.reduce((a, t) => a + t.dur, 0), v = Math.max(8, sd ? cm.reduce((a, t) => a + t.km, 0) / sd * 3600 : 24), km = T.rem / 1000;
+      if (km > 0.15) { const mins = Math.max(1, Math.round(km / v * 60)); ac.innerHTML = `<small>ANKUNFT</small><div><b>${fmtTime(new Date(Date.now() + mins * 6e4))}</b><span>· ${mins} min · ${nf(km, 1)} km</span></div>`; ac.hidden = false; } else ac.hidden = true;
+      if (drv.map && drv.map.getSource && drv.map.getSource('li') === undefined && R.stops && R.stops.length && drv.map.isStyleLoaded()) {
+        drv.map.addSource('li', { type: 'geojson', data: { type: 'FeatureCollection', features: R.stops.map(q => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [q[1], q[0]] } })) } });
+        drv.map.addLayer({ id: 'li', type: 'circle', source: 'li', paint: { 'circle-radius': 5, 'circle-color': '#0b1a14', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      }
+    } catch (e) { }
+  }, 1000);
+}
 function unmountDrive() {
+  if (drv) { clearInterval(drv.mapT); clearInterval(drv.navT); try { drv.map && drv.map.remove(); } catch (e) { } }
   if (drv) cancelAnimationFrame(drv.raf);
   drv = null; const el = $('#drive'); el.hidden = true; el.innerHTML = ''; document.body.style.overflow = '';
 }
@@ -603,6 +700,7 @@ function driveSecond(stale) {
   const now = new Date(), sec = rec.state === 'ready' ? 0 : (now - new Date(rec.start)) / 1000;
   const rl = G('dRec'); if (rl) { const st = rec.state === 'ready' ? 'BEREIT' : rec.state === 'pause' ? 'PAUSE' : 'AUFN.'; if (rl.dataset.s !== st) { rl.dataset.s = st; rl.className = 'rec ' + rec.state; rl.innerHTML = '<i></i>' + st; } }
   const et = G('dEta'); if (et) et.textContent = etaText();
+  gloveChip();
   if (rec.state !== 'ready' && now - (rec.lastSample || 0) >= 5000) { rec.lastSample = +now; rec.hist.push({ t: +now, v: Math.round(stale ? 0 : rec.speed) }); if (stale || rec.speed < 3) rec.stop += 5; }
   const avg = rec.m > 0 ? Math.round(rec.m / sec * 3.6) : 0;
   G('dClock').textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -697,7 +795,7 @@ function typeChart(ms) {
 }
 
 /* ---------- Views ---------- */
-let tripSel = null, dueSel = null, tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
+let tripPages = 0, tripSel = null, dueSel = null, tab = 'fahrt', sub = null, fFilter = 'all', lFilter = 'all';
 /* ---------- Grafiken im Health-Stil ---------- */
 const FF = 'font-family="-apple-system,BlinkMacSystemFont,Helvetica Neue,sans-serif"';
 const kh = (i, t, m = '') => `<div class="kh">${i ? ic(i, 15) : ''}<span>${t}</span>${m ? `<em>${m}</em>` : ''}</div>`;
@@ -728,7 +826,7 @@ function rangeChart(g, avg, unit, title) {
   let s = `<div class="rg"><span>${title || 'Bereich'}</span><b>${nf(lo, 0)}–${nf(hi, 0)}<small> ${unit}</small></b></div><svg viewBox="0 0 ${W} ${H}" width="100%" class="ch">`;
   [0, top / 2, top].forEach(t => s += `<line x1="${x0}" x2="${x1 + 8}" y1="${Y(t)}" y2="${Y(t)}" stroke="rgba(255,255,255,.12)"/><text x="${W}" y="${Y(t) + 4}" text-anchor="end" font-size="10" fill="#8e8e93" ${FF}>${nf(t, 0)}</text>`);
   g.forEach((x, i) => { const cx = x0 + (i + .5) * (x1 - x0) / n; if (x.l) s += `<line x1="${cx - (x1 - x0) / n / 2}" x2="${cx - (x1 - x0) / n / 2}" y1="8" y2="${H - 4}" stroke="rgba(255,255,255,.12)" stroke-dasharray="2 3"/><text x="${cx - (x1 - x0) / n / 2 + 3}" y="${H - 2}" font-size="10" fill="#8e8e93" ${FF}>${x.l}</text>`;
-    if (x.hi > 0) s += `<rect x="${cx - bw / 2}" y="${Y(x.hi)}" width="${bw}" height="${Math.max(bw, Y(x.lo) - Y(x.hi))}" rx="${bw / 2}" fill="#3a3a3c"/>`; });
+    if (x.hi > 0) s += `<rect x="${cx - bw / 2}" y="${Y(x.hi)}" width="${bw}" height="${Math.max(bw, Y(x.lo) - Y(x.hi))}" rx="${bw / 2}" fill="#a9d8c0" fill-opacity=".5"/>`; });
   if (avg) s += `<line x1="${x0}" x2="${x1}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#efbb3c" stroke-width="2.4" stroke-linecap="round"/><text x="${x1}" y="${Y(avg) - 9}" text-anchor="end" font-size="13" font-weight="600" fill="#efbb3c" paint-order="stroke" stroke="rgba(8,18,14,.55)" stroke-width="4" stroke-linejoin="round" ${FF}>${nf(avg, 0)} ${unit}</text>`;
   return s + '</svg>';
 }
@@ -846,7 +944,7 @@ function routeTankCard(ts) {
   fetchRouteStations(); if (!routeSt || !routeSt.list.length) return '';
   const x = routeSt.list[0], det = myMin(x.off * 2, new Date().getHours()), h = new Date().getHours(), i = 'rs';
   const tip = h < 12 ? 'vor 12 Uhr günstig' : 'morgen früh günstiger';
-  return `<button class="card btn rtk" data-a="rtroute">${kh('fuel', 'Tanken auf dem Weg', Math.round(ts.frac * 100) + ' %')}<div class="r"><div class="tn"><b>${esc(x.n)}</b><span>${esc(x.st)} · +${det} min Umweg</span></div><b class="big tpx" style="color:var(--rg)">${(v => { const t = v.toFixed(3); return t.slice(0, -1).replace('.', ',') + '<sup>' + t.slice(-1) + '</sup>'; })(x.price)}<small> €/l</small></b></div><div class="info">${tip}</div></button>`;
+  return `<button class="card btn rtk" data-a="rtroute">${kh('fuel', 'Tanken auf dem Weg', Math.round(ts.frac * 100) + '<small> %</small>')}<div class="r"><div class="tn"><b>${esc(x.n)}</b><span>${esc(x.st)} · +${det} min Umweg</span></div><b class="big tpx" style="color:var(--rg)">${(v => { const t = v.toFixed(3); return t.slice(0, -1).replace('.', ',') + '<sup>' + t.slice(-1) + '</sup>'; })(x.price)}<small> €/l</small></b></div><div class="info">${tip}</div></button>`;
 }
 /* Service-Prognose aus dem Kilometerschnitt der letzten 8 Wochen */
 function svcForecast(r) {
@@ -989,6 +1087,17 @@ function costTiles() {
   const tile = (l, e, k) => `<div class="t">${kh('fuel', l)}<b>${k > 1 ? nf(e / k, 2) : '–'}<small> €/km</small></b><span class="d">${nf(e, 0)} € · ${nf(k, 0)} km</span></div>`;
   return `<div class="sec">Kosten</div><div class="g2">${tile('Kosten pro km', eurA, kmA)}${tile('Dieser Monat', eurM, kmM)}</div>`;
 }
+
+/* Aufklappbare Gruppen: zugeklappt eine Zeile mit der wichtigsten Zahl */
+const foldOpen = new Set();
+const fold = (icon, title, sum, body) => `<details class="card fold" data-k="${esc(title)}"${foldOpen.has(title) ? ' open' : ''}><summary>${kh(icon, title)}<em class="fs">${sum}</em><span class="fch">›</span></summary><div class="fb">${body}</div></details>`;
+const GLV_MAX = 9000, GLV_WARN = 7200;   /* Akku 2,5 h, Hinweis ab 2 h */
+const hm = sec => { const m = Math.max(0, Math.round(sec / 60)); return m >= 60 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min' : m + ' min'; };
+function gloveTile() {
+  const u = db.settings.glove ? db.settings.glove.used : 0, left = GLV_MAX - u, lv = u >= GLV_MAX ? 2 : u >= GLV_WARN ? 1 : 0;
+  const msg = lv === 2 ? 'Handschuhe laden' : lv === 1 ? 'Handschuhe laden bald' : '';
+  return `<button class="t glv${lv ? ' w' + lv : ''}" data-a="glove"><div class="kh">${ic('glove', 15)}<span>Handschuhe</span>${msg ? `<em class="gw">${msg}</em>` : ''}</div><div class="gl"><b>${lv === 2 ? 'Laden' : hm(left)}</b><small>${lv === 2 ? '' : 'übrig'}</small></div><div class="gb"><i style="width:${Math.min(100, Math.round(u / GLV_MAX * 100))}%"></i></div><span class="d">${hm(u)} seit dem Laden</span></button>`;
+}
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
@@ -1004,9 +1113,10 @@ function viewFahrt() {
   const td = (new Date().getDay() + 6) % 7, ps = weekStart(1), pe = new Date(+ps + (td + 1) * 864e5);
   const prev = db.trips.filter(x => { const d = new Date(x.start); return d >= ps && d < pe; }).reduce((a, x) => a + x.km, 0), cur = weekKm(0);
   const avgDay = [1, 2, 3, 4].map(weekKm).reduce((a, b) => a + b, 0) / 28;
-  h += `<div class="g2"><div class="t hero">${kh('route', 'Diese Woche', 'Ø ' + nf(avgDay, 0) + ' km / Tag')}<div class="hv"><b>${nf(cur, 0)}</b><small>km</small></div>${weekLine(dd, td, avgDay)}</div>
+  h += `<div class="g2"><div class="t hero">${kh('route', 'Diese Woche', (db.trips.length && daysAgo(db.trips[db.trips.length - 1].start) >= 7 ? 'Ø ' + nf(avgDay, 1) + ' km/Tag' : ''))}<div class="hv"><b>${nf(cur, 0)}</b><small>km</small></div>${weekLine(dd, td, avgDay)}</div>
   <div class="t">${kh('speed', 'Gesamt')}<b>${nf(odo, 0)}</b><span>km</span></div>
-  <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km' : 'tippen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 52) : ''}</div></button></div>`;
+  <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + '<small> %</small>' : '–'}</b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km' : 'tippen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 52) : ''}</div></button></div>`;
+  h += gloveTile();
   if (fc && fc.wind != null) h += `<div class="card now">${kh('wind', 'Jetzt draußen', fc.gust >= 45 ? lamp(1).replace('bald', 'Böen') : '')}<div class="nw"><div><b>${fc.wind}<small> km/h</small></b><span class="info">Wind aus ${dirName(fc.wdir)} <svg width="13" height="13" viewBox="0 0 24 24" style="transform:rotate(${Math.round(fc.wdir + 180)}deg)" fill="none" stroke="#a8a8ae" stroke-width="2" stroke-linejoin="round"><path d="M12 3l7 17-7-4-7 4z"/></svg></span></div><div><b>${fc.gust}<small> km/h</small></b><span class="info">Böen</span></div><div><b>${nf(fc.temp, 0)}<small> °C</small></b><span class="info">${weatherInfo(fc.code).t}</span></div></div></div>`;
   if (prev || cur) {
     const pc = prev ? Math.round((cur - prev) / prev * 100) : 0;
@@ -1095,17 +1205,42 @@ function viewFahrten() {
   return `<div class="g2"><div class="t hero">${kh('route', 'Gefahren', '8 Wochen')}<div class="hv"><b>${nf(total, 0)}</b><small>km</small></div><div class="hx">${miniCurve(wk, 150, 44)}<div class="hxl"><span>8 WO.</span><span>JETZT</span></div></div></div>
   <div class="t">${kh('navi', 'Fahrten')}<b>${all.length}</b></div><div class="t">${kh('speed', 'Ø pro Fahrt')}<b>${all.length ? nf(total / all.length, 1) : '–'}</b><span>km</span></div></div>
   <div class="sec">Auswertung</div>
-  <div class="card">${kh('clock', 'Pendelzeit', '8 Wochen')}${rangeChart(wkGroups(all.filter(x => x.commute && x.dur > 120), x => Math.round(x.dur / 60)), cm.length ? cm.reduce((a, p) => a + p.y, 0) / cm.length : 0, 'min')}</div>
-  <div class="card">${kh('speed', 'Tempo', 'Ø bis Höchstwert · 8 Wochen')}${rangeChart(wkGroups(all, x => x.max || x.avg).map((g, i) => ({ ...g, lo: wkGroups(all, x => x.avg)[i].lo })), all.length ? all.reduce((a, x) => a + (x.avg || 0), 0) / all.length : 0, 'km/h')}</div>
-  <div class="card">${kh('bab', 'Zonen', '4 Wochen')}${(() => { const z = [0, 0, 0]; all.filter(x => Date.now() - new Date(x.start) < 28 * 864e5).forEach(x => (x.zk || [x.km, 0, 0]).forEach((v, k) => z[k] += v)); const S = z[0] + z[1] + z[2] || 1; return `<div class="zl">${z.map((v, k) => `<i style="flex:${Math.max(v / S, .002)};background:${ZCOL[k]}"></i>`).join('')}</div><div class="lg">${['Stadt', 'Land', 'Autobahn'].map((n, k) => `<span><i style="background:${ZCOL[k]}"></i>${n} ${Math.round(z[k] / S * 100)} %</span>`).join('')}</div>`; })()}</div>
-  ${lightsYearCard()}${stagesCard()}
+  ${(() => {
+    const T = all, d28 = Date.now() - 28 * 864e5, inR = x => +new Date(x.start) >= d28, cmA = T.filter(x => isCom(x) && x.dur > 120 && inR(x)), vA = T.filter(x => inR(x) && x.avg);
+    const am = cmA.length ? Math.round(cmA.reduce((a, x) => a + x.dur, 0) / cmA.length / 60) : 0, av = vA.length ? Math.round(vA.reduce((a, x) => a + x.avg, 0) / vA.length) : 0;
+    const tr = T.filter(inR), nl = tr.length ? Math.round(tr.reduce((a, x) => a + (x.stops ? x.stops.length : 0), 0) / tr.length) : 0;
+    const sumZ = [am ? 'Ø ' + am + ' min' : '', av ? av + ' km/h' : '', nl ? nl + (nl === 1 ? ' Ampel' : ' Ampeln') : ''].filter(Boolean).join(' · ') || 'noch keine Daten';
+    const ms = monthSeries(), avgM = ms.filter(m => m.km).length ? Math.round(ms.reduce((a, m) => a + m.km, 0) / ms.filter(m => m.km).length) : 0, R = records();
+    const z = [0, 0, 0]; T.filter(x => Date.now() - new Date(x.start) < 28 * 864e5).forEach(x => (x.zk || [x.km, 0, 0]).forEach((v, k) => z[k] += v)); const S = z[0] + z[1] + z[2] || 1;
+    const zones = `<div class="card">${kh('bab', 'Zonen', '4 Wochen')}<div class="zl">${z.map((v, k) => `<i style="flex:${Math.max(v / S, .002)};background:${ZCOL[k]}"></i>`).join('')}</div><div class="lg">${['Stadt', 'Land', 'Autobahn'].map((n, k) => `<span><i style="background:${ZCOL[k]}"></i>${n} ${Math.round(z[k] / S * 100)} %</span>`).join('')}</div></div>`;
+    const rt = (i, v, u, l) => `<div class="t rk">${kh(i, l)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span class="d">${v ? v.d : ''}</span></div>`;
+    const d56 = Date.now() - 56 * 864e5, inB = x => { const q = +new Date(x.start); return q >= d56 && q < d28; };
+    const cmB = T.filter(x => isCom(x) && x.dur > 120 && inB(x)), kA = tr.reduce((a, x) => a + x.km, 0) / 4, kB = T.filter(inB).reduce((a, x) => a + x.km, 0) / 4;
+    const amB = cmB.length ? Math.round(cmB.reduce((a, x) => a + x.dur, 0) / cmB.length / 60) : 0;
+    const trends = `<div class="g2">${trendTile('clock', 'Pendelzeit', am ? am + '<small> min</small>' : '–', cmB.length && cmA.length ? am - amB : 0, am <= amB)}${trendTile('route', 'km / Woche', nf(kA, 0), kB ? Math.round(kA - kB) : 0, true)}</div>`;
+    const wk = R.week, sumR = R.long ? 'Längste Tour ' + R.long.v + ' km' : 'noch keine Rekorde';
+    return fold('clock', 'Zeit', sumZ, `<div class="card">${kh('clock', 'Pendelzeit', '8 Wochen')}${rangeChart(wkGroups(all.filter(x => x.commute && x.dur > 120), x => Math.round(x.dur / 60)), cm.length ? cm.reduce((a, p) => a + p.y, 0) / cm.length : 0, 'min')}</div>
+      <div class="card">${kh('speed', 'Tempo', 'Ø bis Höchstwert · 8 Wochen')}${rangeChart(wkGroups(all, x => x.max || x.avg).map((g, i) => ({ ...g, lo: wkGroups(all, x => x.avg)[i].lo })), all.length ? all.reduce((a, x) => a + (x.avg || 0), 0) / all.length : 0, 'km/h')}</div>${lightsYearCard()}<div class="card">${kh('cloud', 'Temperatur', '8 Wochen')}${(() => { const tp = T.filter(x => x.temp != null && Date.now() - new Date(x.start) < 56 * 864e5).map(x => Math.round(x.temp)); return rangeChart(wkGroups(T, x => x.temp != null ? Math.round(x.temp) : null), tp.length ? tp.reduce((a, b) => a + b, 0) / tp.length : 0, '°C'); })()}</div>`)
+    + fold('route', 'Strecke', avgM ? 'Ø ' + avgM + ' km / Monat' : 'noch keine Daten', `<div class="card">${kh('route', 'Kilometer pro Monat', 'Ø ' + avgM)}${monthChart(ms)}</div><div class="card">${kh('bab', 'Strecke pro Typ')}${typeChart(ms)}<div class="lg"><span><i style="background:${ZCOL[0]}"></i>Stadt</span><span><i style="background:${ZCOL[1]}"></i>Land</span><span><i style="background:${ZCOL[2]}"></i>Autobahn</span></div></div>${zones}${stagesCard()}`)
+    + fold('bolt', 'Trends', (am ? am + ' min' : '–') + ' · ' + nf(kA, 0) + ' km / Woche', trends)
+    + fold('cal', 'Rekorde', sumR, `<div class="g2">${rt('clock', R.fast, 'min', 'Schnellste Pendelfahrt')}${rt('route', R.long, 'km', 'Längste Tour')}${rt('speed', R.top, 'km/h', 'Höchstes Tempo')}${rt('cal', R.week, 'km', 'Beste Woche')}${rt('bolt', R.streak, 'Tage', 'Längste Serie')}${rt('fuel', R.cons, 'l/100', 'Bester Verbrauch')}</div>`);
+  })()}
   <div class="sec">Alle Fahrten</div>
   <div class="chips">${chip('all', 'Alle')}${chip('commute', 'Pendeln')}${chip('free', 'Freizeit')}${chip('cold', 'Kalt ≤ 5°', 'w')}</div>
-  ${t.length ? t.map(x => {
-    const w = weatherInfo(x.code);
-    return `<div class="card tripc" data-a="opentrip" data-id="${x.id}"><div class="r"><div><b class="big">${nf(x.km, 1)}<small> km</small></b><span class="l">${fmtDay(x.start)} · ${fmtTime(x.start)}</span></div><span class="ft">${ftLabel(x)}</span></div>
-    <div class="r2"><span>${Math.round(x.dur / 60)} min</span><span class="y">Ø ${x.avg}</span>${x.temp != null ? `<span>${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(x.temp, 0)}°C</span>` : ''}<span>${x.commute ? 'Pendeln' : 'Freizeit'}</span></div>${x.zk ? zb(x.zk) : ''}<span class="chev">›</span></div>`;
-  }).join('') : '<p class="mu">Keine Fahrten in dieser Ansicht.</p>'}`;
+  ${(() => {
+    if (!t.length) return '<p class="mu">Keine Fahrten in dieser Ansicht.</p>';
+    const card = x => { const w = weatherInfo(x.code);
+      return `<div class="card tripc" data-a="opentrip" data-id="${x.id}"><div class="r"><div class="tl"><b class="big">${nf(x.km, 1)}<small> km</small></b><span class="l">${fmtDay(x.start)} · ${fmtTime(x.start)}</span></div><span class="ft">${ftLabel(x)}</span></div>
+      <div class="r2"><span>${Math.round(x.dur / 60)} min</span><span class="y">Ø ${x.avg} km/h</span>${x.temp != null ? `<span>${ic(w.wet ? 'drop' : 'cloud', 13)} ${nf(x.temp, 0)} °C</span>` : ''}<span>${isCom(x) ? 'Pendeln' : 'Freizeit'}</span></div>${x.zk ? zb(x.zk) : ''}<span class="chev">›</span></div>`; };
+    const n = Math.min(t.length, 5 + 10 * tripPages), head = t.slice(0, n), rest = t.slice(n);
+    let h = head.map(card).join('');
+    if (rest.length) {
+      h += `<button class="actb" data-a="tripmore"><span>Mehr anzeigen</span><span class="chev">›</span></button>`;
+      const by = {}; rest.forEach(x => { const d = new Date(x.start), k = d.getFullYear() * 12 + d.getMonth(); (by[k] = by[k] || []).push(x); });
+      Object.keys(by).sort((p, q) => q - p).forEach(k => { const L = by[k], d = new Date(L[0].start), ti = MO[d.getMonth()] + ' ' + d.getFullYear();
+        h += `<details class="card fold month" data-k="${ti}"${foldOpen.has(ti) ? ' open' : ''}><summary><div class="kh"><span>${ti}</span></div><em class="fs">${L.length} Fahrten · ${nf(L.reduce((a, x) => a + x.km, 0), 0)} km</em><span class="fch">›</span></summary><div class="fb">${L.map(card).join('')}</div></details>`; });
+    }
+  })()}`;
 }
 function tripMap(rt) {
   if (!rt || rt.length < 2) return '';
@@ -1200,10 +1335,18 @@ function viewLogbuch() {
   const logs = db.logs.filter(l => lFilter === 'all' || l.type === lFilter).sort((a, b) => b.date.localeCompare(a.date) || (b.odo || 0) - (a.odo || 0));
   const chip = (k, l) => `<button class="c ${lFilter === k ? 'on' : ''}" data-a="lf" data-f="${k}">${l}</button>`;
   const ts = tankState();
-  return `  <div class="g2"><div class="t hero">${kh('fuel', 'Kosten')}<div class="hv"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><small>€ / 100 km</small></div></div><div class="t">${kh('drop', 'Verbrauch')}<b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km</span></div><button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + ' %' : '–'}</b></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 46) : ''}</div></button></div>
+  return `  <div class="g2"><div class="t hero">${kh('fuel', 'Kosten')}<div class="hv"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><small>€ / 100 km</small></div></div><div class="t">${kh('drop', 'Verbrauch')}<b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km</span></div><button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + '<small> %</small>' : '–'}</b></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 46) : ''}</div></button></div>
   <div class="sec">Auswertung</div>
-  <div class="card">${kh('drop', 'Verbrauch', 'l / 100 km')}${lineChart(cons.map(c => c.l100), cons.map(c => fmtDate(c.date)), '')}</div>
-  <div class="card">${kh('fuel', 'Kosten pro Monat', '€')}${(() => { const v = [], l = [], n0 = new Date(); for (let i = 5; i >= 0; i--) { const d = new Date(n0.getFullYear(), n0.getMonth() - i, 1); l.push(MO[d.getMonth()].slice(0, 3)); v.push(db.logs.filter(x => x.eur && x.date && +x.date.slice(0, 4) === d.getFullYear() && +x.date.slice(5, 7) === d.getMonth() + 1).reduce((a, x) => a + x.eur, 0)); } return lineChart(v, l, ' €'); })()}</div>
+  ${(() => {
+    const m0 = today().slice(0, 7), eurM = db.logs.filter(x => x.eur && x.date && x.date.slice(0, 7) === m0).reduce((a, x) => a + x.eur, 0);
+    const sumK = [km && spent ? nf(spent / km, 2) + ' €/km' : '', eurM ? nf(eurM, 0) + ' € im Monat' : ''].filter(Boolean).join(' · ') || 'noch keine Daten';
+    const kosten = `<div class="card">${kh('drop', 'Verbrauch', 'l / 100 km')}${lineChart(cons.map(c => c.l100), cons.map(c => fmtDate(c.date)), '')}</div>
+    <div class="card">${kh('fuel', 'Kosten pro Monat', '€')}${(() => { const v = [], l = [], n0 = new Date(); for (let i = 5; i >= 0; i--) { const d = new Date(n0.getFullYear(), n0.getMonth() - i, 1); l.push(MO[d.getMonth()].slice(0, 3)); v.push(db.logs.filter(x => x.eur && x.date && +x.date.slice(0, 4) === d.getFullYear() && +x.date.slice(5, 7) === d.getMonth() + 1).reduce((a, x) => a + x.eur, 0)); } return lineChart(v, l, ' €'); })()}</div>${costTiles().replace('<div class="sec">Kosten</div>', '')}`;
+    const st = db.reminders.map(r => ({ r, s: reminderStatus(r) })).sort((a, b) => b.s.level - a.s.level)[0];
+    const sumW = st ? esc(st.r.name) + ' · ' + esc(st.s.text) : 'keine Erinnerungen';
+    const wart = db.reminders.map(r => remCard(r, reminderStatus(r))).join('') + `<button class="sm" data-a="newrem">+ Erinnerung</button>`;
+    return fold('fuel', 'Kosten', sumK, kosten) + fold('wrench', 'Wartung', sumW, wart) + fold('note', 'Steuer', 'Pendlerpauschale', pauschaleCard());
+  })()}
   <div class="sec">Einträge</div><div class="chips">${chip('all', 'Alle')}${chip('tank', 'Tanken')}${chip('service', 'Service')}${chip('reifen', 'Reifen')}${chip('notiz', 'Notiz')}</div>
   ${logs.length ? logs.map(l => {
     let d = '', right = '';
@@ -1215,37 +1358,11 @@ function viewLogbuch() {
   }).join('') : '<p class="mu">Noch keine Einträge.</p>'}`;
 }
 function viewMehr() {
-  const ms = monthSeries(), avgM = ms.filter(m => m.km).length ? Math.round(ms.reduce((a, m) => a + m.km, 0) / ms.filter(m => m.km).length) : 0;
-  const R = records(), rt = (i, v, u, l, hero) => `<div class="t rk${hero ? ' hero' : ''}">${kh(i, l)}<b>${v ? v.v : '–'}<small> ${v ? u : ''}</small></b><span class="d">${v ? v.d : ''}</span></div>`;
   const op = db.settings.odoPhoto;
-  const T = db.trips, d28 = Date.now() - 28 * 864e5, d56 = Date.now() - 56 * 864e5, inR = (t, a, b) => { const x = +new Date(t.start); return x >= a && x < b; };
-  const cmA = T.filter(t => isCom(t) && t.dur > 120 && inR(t, d28, Infinity)), cmB = T.filter(t => isCom(t) && t.dur > 120 && inR(t, d56, d28)), am = a => a.length ? Math.round(a.reduce((x, t) => x + t.dur, 0) / a.length / 60) : 0;
-  const kA = T.filter(t => inR(t, d28, Infinity)).reduce((a, t) => a + t.km, 0) / 4, kB = T.filter(t => inR(t, d56, d28)).reduce((a, t) => a + t.km, 0) / 4;
-  const vA = T.filter(t => inR(t, d28, Infinity) && t.avg), vB = T.filter(t => inR(t, d56, d28) && t.avg), av = a => a.length ? Math.round(a.reduce((x, t) => x + t.avg, 0) / a.length) : 0;
-  const cs = consumption(), cL = cs.length ? cs[cs.length - 1].l100 : 0, cP = cs.length > 1 ? cs[cs.length - 2].l100 : cL;
-  const temps = T.filter(t => t.temp != null && inR(t, d56, Infinity)).map(t => ({ x: (new Date(t.start) - d56) / 864e5, y: Math.round(t.temp), c: tcol(t.temp) }));
-  return `<div class="sec" style="margin-top:0">Trends</div><div class="g2">
-  ${trendTile('clock', 'Pendelzeit', am(cmA) ? am(cmA) + '<small> min</small>' : '–', cmB.length && cmA.length ? am(cmA) - am(cmB) : 0, am(cmA) <= am(cmB))}
-  ${trendTile('route', 'km / Woche', nf(kA, 0), kB ? Math.round(kA - kB) : 0, true)}
-  ${trendTile('drop', 'Verbrauch', cL ? nf(cL, 1) + '<small> l</small>' : '–', cs.length > 1 ? Math.round((cL - cP) * 10) / 10 : 0, cL <= cP)}
-  ${trendTile('speed', 'Ø Tempo', av(vA) ? av(vA) + '<small> km/h</small>' : '–', vB.length && vA.length ? av(vA) - av(vB) : 0, true)}</div>
-  <div class="sec">Analyse</div>
-  <div class="card">${kh('route', 'Kilometer pro Monat', 'Ø ' + avgM)}${monthChart(ms)}</div>
-  <div class="card">${kh('bab', 'Strecke pro Typ')}${typeChart(ms)}<div class="lg"><span><i style="background:${ZCOL[0]}"></i>Stadt</span><span><i style="background:${ZCOL[1]}"></i>Land</span><span><i style="background:${ZCOL[2]}"></i>Autobahn</span></div></div>
-  <div class="card">${kh('cloud', 'Temperatur', '8 Wochen')}${rangeChart(wkGroups(T, x => x.temp != null ? Math.round(x.temp) : null), temps.length ? temps.reduce((a, p) => a + p.y, 0) / temps.length : 0, '°C')}</div>
-  <div class="sec">Rekorde</div>
-  <div class="g2">${rt('clock', R.fast, 'min', 'Schnellste Pendelfahrt')}${rt('route', R.long, 'km', 'Längste Tour', 1)}${rt('speed', R.top, 'km/h', 'Höchstes Tempo')}${rt('cal', R.week, 'km', 'Beste Woche')}${rt('bolt', R.streak, 'Tage', 'Längste Serie')}${rt('fuel', R.cons, 'l/100', 'Bester Verbrauch')}</div>
-  ${costTiles()}<div class="sec">Erinnerungen</div>
-  ${db.reminders.map(r => remCard(r, reminderStatus(r))).join('')}
-  <button class="sm" data-a="newrem">+ Erinnerung</button>
-  <div class="sec">Steuer</div>
-  ${pauschaleCard()}
-  <div class="sec">Schnellstart</div>
-  <div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>
-  <div class="sec">Einstellungen</div>
+  return `<div class="sec" style="margin-top:0">Einstellungen</div>
   <div class="card">
     <div class="srow"><span>Kilometerstand</span><em>${nf(currentOdo(), 0)} km</em></div><div class="srow"><span>Pendelstrecke</span><em>${nf(db.settings.pendelKm, 1)} km</em></div><div class="srow"><span>Tankgröße</span><em>${nf(db.settings.tank, 1)} l</em></div><div class="srow"><span>Nadel im Tacho</span><em>${db.settings.needle ? 'An' : 'Aus'}</em></div><div class="srow"><span>Tankerkönig-Schlüssel</span><em>${db.settings.tkKey ? 'Gesetzt' : '–'}</em></div>
-    <div class="srow"><span>Sprachansage beim Start</span><button class="sm" data-a="voice">${db.settings.voice ? 'An' : 'Aus'}</button></div>
+    <div class="srow"><span>Sprachansage</span><button class="sm" data-a="voice">${db.settings.voice ? 'An' : 'Aus'}</button></div>
     <div style="margin-top:12px;display:flex;gap:8px"><button class="sm" data-a="settings">Ändern</button><button class="sm" data-a="odophoto">${ic('speed', 13)} Tacho fotografieren</button></div>
     ${op ? `<div class="odoph"><img src="${op.img}" alt="Tacho"><span class="l">Abgleich ${fmtDate(op.t)} · ${nf(op.odo || 0, 0)} km</span></div>` : ''}
   </div>
@@ -1255,8 +1372,12 @@ function viewMehr() {
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
   <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 19 · 20.11.2026</p>`;
+  <div class="sec">Weitere</div>
+  <button class="actb" data-a="nfctoggle"><span>Schnellstart per NFC</span><span class="chev">${nfcOpen ? '‹' : '›'}</span></button>
+  ${nfcOpen ? `<div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>` : ''}
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 20 · 21.11.2026</p>`;
 }
+let nfcOpen = false;
 function dockHTML() {
   /* Wie Fotos: links Gruppe, rechts eine Hauptaktion */
   const row = (left, a, label, icon, cls = '') => `<div class="drow">${left || '<span></span>'}<button class="cta ${cls}" data-a="${a}">${ic(icon, 18)}<span>${label}</span></button></div>`;
@@ -1264,8 +1385,9 @@ function dockHTML() {
   if (tab === 'fahrt') {
     if (sub === 'finden') return back;
     if (sub === 'tanken') return stations && stations.list && stations.list.length ? row(`<div class="grp"><button data-a="back">${ic('back', 18)}<span>Zurück</span></button></div>`, 'route', 'Route', 'navi') : back;
-    return row(`<div class="rb"><button data-a="navwork" aria-label="Arbeit">${ic('work', 23)}</button><button data-a="navhome" aria-label="Zuhause">${ic('home', 23)}</button><button data-a="navfree" aria-label="Navi">${ic('locarrow', 23)}</button></div>`, 'start', 'Starten', 'vespa', 'go');
+    return row('', 'start', 'Starten', 'vespa', 'go');
   }
+  if (tab === 'mehr') return back;
   if (tab === 'fahrten' && sub === 'trip') return back;
   if (tab === 'fahrten') return row('', 'manualtrip', 'Nachtragen', 'plus');
   if (tab === 'logbuch') return row('', 'chooser', 'Eintrag', 'plus');
@@ -1280,7 +1402,7 @@ function updBar() {
   b.querySelector('button').onclick = () => location.reload();
   document.body.appendChild(b);
 }
-const ORD = ['fahrt', 'fahrten', 'logbuch', 'mehr']; let sliding = false;
+const ORD = ['fahrt', 'fahrten', 'logbuch']; let sliding = false;
 function slideTo(nt, dir, back) {
   const v = $('#view'), d = $('#dock'); if (sliding) return; sliding = true;
   v.style.transition = 'transform .17s cubic-bezier(.4,0,1,1), opacity .17s'; v.style.transform = `translateX(${-dir * 55}%)`; v.style.opacity = '0'; d.style.transition = 'opacity .17s'; d.style.opacity = '0';
@@ -1340,7 +1462,7 @@ function render() {
   [...v.querySelectorAll(':scope > .sec')].forEach(h => { const sc = document.createElement('section'); sc.className = 'grp'; h.before(sc); let n = h; const list = []; while (n && (n === h || !n.classList || !n.classList.contains('sec'))) { list.push(n); n = n.nextSibling; } list.forEach(x => sc.appendChild(x)); });
   $('#dock').innerHTML = dockHTML();
   const nd = $('#dock').children.length; $('#view').style.paddingBottom = nd ? (nd > 1 ? '260px' : '190px') : '120px';
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab)); document.body.classList.toggle('inmehr', tab === 'mehr'); closeCap();
   moveInd(); requestAnimationFrame(() => window.dispatchEvent(new Event('scroll')));
   if (tab === 'fahrt' && sub === 'finden') { finderStart(); finderUpdate(); } else finderStop();
   window.scrollTo(0, y);
@@ -1379,10 +1501,28 @@ function navTo(k, label) {
   location.href = 'https://maps.apple.com/?daddr=' + p.lat + ',' + p.lon + '&dirflg=d';
 }
 
+
+/* Starten: Tipp = Fahrt starten, langes Drücken = Kapsel mit Arbeit, Zuhause, Navi */
+let capOpen = false, lpT = null, lpFired = false;
+function closeCap() { capOpen = false; const dk = G('dock'); if (dk) dk.classList.remove('up'); const c = G('cap'), o = G('capOv'); if (c) c.remove(); if (o) o.remove(); }
+function openCap() {
+  closeCap(); capOpen = true; hap(2); G('dock').classList.add('up');
+  document.body.insertAdjacentHTML('beforeend', `<div id="capOv"></div><div id="cap"><button data-a="navwork">${ic('work', 22)}<span>Arbeit</span></button><button data-a="navhome">${ic('home', 22)}<span>Zuhause</span></button><button data-a="navfree">${ic('locarrow', 22)}<span>Navi</span></button></div>`);
+  G('capOv').addEventListener('click', closeCap);
+}
 const actions = {
-  start: startTrip, stop: stopTrip,
+  start() { if (capOpen) return closeCap(); startTrip(); }, stop: stopTrip,
+  gear() { tab = 'mehr'; sub = null; render(); window.scrollTo(0, 0); },
+  nfctoggle() { nfcOpen = !nfcOpen; render(); },
+  glove() {
+    const g = db.settings.glove;
+    openSheet('Handschuhe', [{ n: 'min', l: 'Genutzt seit dem Laden (Minuten) · Akku hält 150 min', type: 'number', v: Math.round(g.used / 60) }], o => { if (o.min != null) g.used = Math.max(0, Math.round(o.min * 60)); });
+    $('#sheetForm').querySelector('.grid').insertAdjacentHTML('beforebegin', '<button type="button" data-a="gloveload" class="pri" style="width:100%;margin-top:16px">Geladen</button>');
+  },
+  gloveload() { db.settings.glove.used = 0; save(); closeSheet(); render(); toast('Handschuhe geladen'); },
+  navwork() { closeCap(); navTo('work', 'Arbeit'); }, navhome() { closeCap(); navTo('home', 'Zuhause'); }, navfree() { closeCap(); actions.navfree2(); },
   finden() { sub = 'finden'; render(); },
-  back() { sub = null; render(); },
+  back() { if (tab === 'mehr') tab = 'fahrt'; sub = null; render(); window.scrollTo(0, 0); },
   opentrip(el) { tripSel = el.dataset.id; sub = 'trip'; render(); window.scrollTo(0, 0); },
   dismiss() { db.settings.notice = null; save(); render(); },
   lasttrip(el) { tab = 'fahrten'; tripSel = el.dataset.id; sub = 'trip'; render(); window.scrollTo(0, 0); },
@@ -1408,12 +1548,12 @@ const actions = {
   tks(el) { db.settings.tkSort = el.dataset.f; save(); render(); },
   tkmore() { if (stations) stations.all = true; render(); },
   route(el) { const s = stations && stations.list && stations.list[+el.dataset.i || 0]; if (s) location.href = 'https://maps.apple.com/?daddr=' + s.lat + ',' + s.lon + '&dirflg=d'; },
-  navwork() { navTo('work', 'Arbeit'); }, navhome() { navTo('home', 'Zuhause'); },
-  navfree() { openSheet('Navigation', [{ n: 'dest', l: 'Ziel (Adresse oder Ort), Start ist dein Standort', v: '' }], o => { const q = (o.dest || '').trim(); if (!q) return toast('Ziel fehlt'); location.href = 'https://maps.apple.com/?dirflg=d&daddr=' + encodeURIComponent(q); }, 'Los'); },
+  navfree2() { openSheet('Navigation', [{ n: 'dest', l: 'Ziel (Adresse oder Ort), Start ist dein Standort', v: '' }], o => { const q = (o.dest || '').trim(); if (!q) return toast('Ziel fehlt'); location.href = 'https://maps.apple.com/?dirflg=d&daddr=' + encodeURIComponent(q); }, 'Los'); },
   setcat(el) { const t = db.trips.find(x => x.id === el.dataset.id); if (!t) return; t.cat = el.dataset.v; save(); hap(1); render(); toast(t.cat === 'pendel' ? 'Pendel' : 'Freizeit'); },
   voice() { db.settings.voice = !db.settings.voice; save(); if (db.settings.voice) say('Sprachansage an'); render(); },
   setwork() { setPlace('work', 'Arbeit'); }, sethome() { setPlace('home', 'Zuhause'); },
-  ff(el) { fFilter = el.dataset.f; render(); }, lf(el) { lFilter = el.dataset.f; render(); },
+  ff(el) { fFilter = el.dataset.f; tripPages = 0; render(); },
+  tripmore() { tripPages++; render(); }, lf(el) { lFilter = el.dataset.f; render(); },
   chooser() {
     const f = $('#sheetForm');
     f.innerHTML = `<h1>Neuer Eintrag</h1><div style="display:grid;gap:10px;margin-top:14px">${['tank', 'service', 'reifen', 'notiz'].map(k => `<button type="button" data-a="${k}" style="text-align:left;display:flex;gap:12px;align-items:center">${ic(LT[k][1], 20)} ${LT[k][0]}</button>`).join('')}</div><div class="grid" style="margin-top:16px"><button type="button" data-x="cancel">Abbrechen</button></div>`;
@@ -1502,6 +1642,10 @@ function init() {
     if (e.target.dataset.x === 'cancel' || e.target.classList.contains('sheet-bg')) return closeSheet();
     const a = e.target.closest('[data-a]'); if (a && actions[a.dataset.a]) { if (a.dataset.a === 'start') hap(2); if (['tank', 'service', 'reifen', 'notiz'].includes(a.dataset.a)) closeSheet(); actions[a.dataset.a](a); }
   });
+  document.addEventListener('toggle', e => { const d = e.target; if (d && d.classList && d.classList.contains('fold')) { if (d.open) foldOpen.add(d.dataset.k); else foldOpen.delete(d.dataset.k); } }, true);
+  document.addEventListener('pointerdown', e => { const b = e.target.closest('.drow .cta.go'); if (!b || rec) return; lpFired = false; clearTimeout(lpT); lpT = setTimeout(() => { lpFired = true; openCap(); }, 550); });
+  ['pointerup', 'pointercancel', 'pointermove'].forEach(n => document.addEventListener(n, e => { if (n === 'pointermove' && Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0) < 4) return; clearTimeout(lpT); }));
+  document.addEventListener('click', e => { if (lpFired && e.target.closest('.drow .cta.go')) { e.stopPropagation(); e.preventDefault(); lpFired = false; } }, true);
   document.addEventListener('change', e => {
     if (e.target.id === 'odoimg' && e.target.files[0]) return odoFromPhoto(e.target.files[0]);
     if (e.target.id !== 'imp' || !e.target.files[0]) return;
@@ -1511,6 +1655,7 @@ function init() {
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !rec) { fetchForecast(); render(); } });
   $('#view').insertAdjacentHTML('beforebegin', '<div id="hdrbox">' + HDR + '</div>');
+  document.body.insertAdjacentHTML('beforeend', `<button id="gear" data-a="gear" aria-label="Einstellungen">${ic('gear', 23)}</button>`);
   document.body.insertAdjacentHTML('beforeend', '<div id="topblur"></div>');
   /* Hauptbutton wird beim Scrollen zu Glas */
   const lg = $('#hdrbox img');
