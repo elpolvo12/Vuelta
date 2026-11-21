@@ -1240,6 +1240,7 @@ function viewFahrten() {
       Object.keys(by).sort((p, q) => q - p).forEach(k => { const L = by[k], d = new Date(L[0].start), ti = MO[d.getMonth()] + ' ' + d.getFullYear();
         h += `<details class="card fold month" data-k="${ti}"${foldOpen.has(ti) ? ' open' : ''}><summary><div class="kh"><span>${ti}</span></div><em class="fs">${L.length} Fahrten · ${nf(L.reduce((a, x) => a + x.km, 0), 0)} km</em><span class="fch">›</span></summary><div class="fb">${L.map(card).join('')}</div></details>`; });
     }
+    return h;
   })()}`;
 }
 function tripMap(rt) {
@@ -1375,7 +1376,7 @@ function viewMehr() {
   <div class="sec">Weitere</div>
   <button class="actb" data-a="nfctoggle"><span>Schnellstart per NFC</span><span class="chev">${nfcOpen ? '‹' : '›'}</span></button>
   ${nfcOpen ? `<div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>` : ''}
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 20 · 21.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 24 · 21.11.2026</p>`;
 }
 let nfcOpen = false;
 function dockHTML() {
@@ -1515,9 +1516,10 @@ const actions = {
   gear() { tab = 'mehr'; sub = null; render(); window.scrollTo(0, 0); },
   nfctoggle() { nfcOpen = !nfcOpen; render(); },
   glove() {
+    if (!db.settings.glove) db.settings.glove = { used: 63 * 60 };
     const g = db.settings.glove;
     openSheet('Handschuhe', [{ n: 'min', l: 'Genutzt seit dem Laden (Minuten) · Akku hält 150 min', type: 'number', v: Math.round(g.used / 60) }], o => { if (o.min != null) g.used = Math.max(0, Math.round(o.min * 60)); });
-    $('#sheetForm').querySelector('.grid').insertAdjacentHTML('beforebegin', '<button type="button" data-a="gloveload" class="pri" style="width:100%;margin-top:16px">Geladen</button>');
+    const gr = $('#sheetForm').querySelector('.grid'); if (gr) gr.insertAdjacentHTML('beforebegin', '<button type="button" data-a="gloveload" class="pri" style="width:100%;margin-top:16px">Geladen</button>');
   },
   gloveload() { db.settings.glove.used = 0; save(); closeSheet(); render(); toast('Handschuhe geladen'); },
   navwork() { closeCap(); navTo('work', 'Arbeit'); }, navhome() { closeCap(); navTo('home', 'Zuhause'); }, navfree() { closeCap(); actions.navfree2(); },

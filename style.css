@@ -916,7 +916,6 @@ body.scrolled #tabs button{flex-direction:column!important;gap:2px!important}
 #gear svg{width:22px;height:22px}
 body.inmehr #gear{display:none}
 /* Streifen: alle Prägung, links vom Zahnrad */
-.vst{left:calc(62% - 50px)!important}
 .vst i{background:linear-gradient(90deg,rgba(255,255,255,.10),rgba(255,255,255,.03))!important;box-shadow:inset 1px 1px 0 rgba(255,255,255,.18),inset -1px -1px 0 rgba(0,0,0,.55)!important;opacity:.7}
 .vst u{background:linear-gradient(90deg,rgba(255,255,255,.14),rgba(255,255,255,.04))!important;box-shadow:inset 1px 1px 0 rgba(255,255,255,.22),inset -1px -1px 0 rgba(0,0,0,.55)!important;opacity:.75}
 /* Kachelränder halb so hell */
@@ -936,9 +935,8 @@ details.fold>summary .kh{flex:none;margin:0}
 .fch{flex:none;color:#98989f;font-size:20px;line-height:1;transition:transform .2s}
 details[open]>summary .fch{transform:rotate(90deg)}
 .fb{margin-top:14px}
-.fb>.card,.fb>.t{background:none!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:0!important;margin:16px 0 0!important;border:0!important}
-.fb>.card::before{display:none!important}
-.fb>.card:first-child{margin-top:0!important}
+.fb>.card,.fb>.t,.fb>.g2{margin:12px 0 0!important}
+.fb>:first-child{margin-top:0!important}
 details.month .fb>.card{margin-top:12px!important;padding:14px!important;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.02))!important}
 details.month .fb>.card::before{display:block!important}
 /* Handschuhe */
@@ -983,3 +981,29 @@ body.inmehr #tabs .ind{opacity:0!important}
   #drive .navc{left:calc(100vh + 22px)!important;top:12px!important;right:auto!important;bottom:auto!important}
   #drive .arrc{left:calc(100vh + 22px)!important;bottom:12px!important;top:auto!important;right:auto!important}
 }
+.fb{min-width:0}
+.fb .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fb .g2>*{min-width:0;max-width:100%}
+.fb .g2 .t{overflow:hidden}
+.fb .g2 .t b{font-size:clamp(20px,6.4vw,30px)}
+body.scrolled #gear{opacity:0;pointer-events:none}
+#gear{transition:opacity .2s}
+.tripc .r2 span,.tripc .l,.rk .d{text-transform:none!important;letter-spacing:.01em}
+/* Knopf bleibt beim Scrollen exakt stehen */
+body.scrolled #dock,body.scr2 #dock,body.scrolled.scr2 #dock{bottom:calc(14px + env(safe-area-inset-bottom))!important;transition:none!important}
+body.scrolled .drow .cta,body.scr2 .drow .cta{transition:none!important}
+/* nie breiter als der Bildschirm */
+html,body{max-width:100vw;overflow-x:hidden}
+#view{max-width:100%;overflow-x:clip}
+#view>*,.card,.t,.fb{max-width:100%;min-width:0}
+svg{max-width:100%}
+
+/* v24 */
+body::after{height:auto!important;bottom:0!important}
+#dock{pointer-events:none}#dock button,#dock .cta,#dock a,#dock .navrow{pointer-events:auto}
+.drow .cta:not(.go):not(.sec2),body.scrolled .drow .cta:not(.go):not(.sec2),body.scrolled .cta{background:rgba(255,214,90,.9)!important;color:#1a1204!important;border-color:transparent!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1.5px 5px rgba(255,250,230,.28),inset 0 0 12px rgba(255,245,210,.08)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.fb .g2 .t,.fb>.card{width:100%}
+details.fold{background:none!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border:0!important;padding:0!important}
+details.fold::before{display:none!important}
+details.fold>summary{padding:16px;border-radius:26px;background:linear-gradient(145deg,rgba(255,255,255,.09),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 22px rgba(0,0,0,.3);-webkit-backdrop-filter:blur(20px) saturate(105%);backdrop-filter:blur(20px) saturate(105%)}
+details.fold .fb .card{padding:16px}
