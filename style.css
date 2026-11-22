@@ -1012,3 +1012,8 @@ details.fold .fb .card{padding:16px}
 #drive .dialbox{position:absolute!important;left:0!important;top:0!important;bottom:0!important;width:calc(100vh - 6px)!important;height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;margin:0!important;padding:0!important;overflow:hidden}
 #drive #dsv{width:calc(100vh - 28px)!important;height:calc(100vh - 28px)!important;max-width:100%!important;flex:none;margin:0!important}
 }
+/* v26: Tacho oben, nie beschnitten */
+@media (orientation:landscape) and (max-height:520px){
+#drive .dialbox{position:absolute!important;left:0!important;top:0!important;bottom:auto!important;height:100vh!important;max-height:none!important;overflow:visible!important;align-items:flex-start!important;padding-top:max(8px,env(safe-area-inset-top))!important}
+#drive #dsv{width:min(calc(100vh - 20px),calc(100vw - 100vh - 40px))!important;height:min(calc(100vh - 20px),calc(100vw - 100vh - 40px))!important}
+}

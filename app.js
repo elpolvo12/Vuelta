@@ -1110,7 +1110,7 @@ function viewFahrt() {
   h += commuteCard() + routeTankCard(ts);
   (fc ? fc.warns : []).forEach(w => h += `<div class="card wx">${kh(w.icon, esc(w.t), lamp(1).replace('bald', 'Achtung'))}<div class="rt">${esc(w.d)}</div></div>`);
   if (daysAgo(db.settings.odoCheck || db.settings.odoDate) > 30) h += `<button class="actb" data-a="odophoto"><span>Kilometerstand abgleichen</span>${ic('speed', 17)}</button>`;
-  if (db.trips.length && daysAgo(db.settings.lastBackup) > 7) h += `<button class="actb" data-a="export"><span>Daten sichern <small>· ${db.settings.lastBackup ? 'vor ' + Math.floor(daysAgo(db.settings.lastBackup)) + ' Tagen' : 'nie gesichert'}</small></span>${ic('note', 17)}</button>`;
+  if (db.trips.length && daysAgo(db.settings.lastBackup) > 7) h += `<button class="actb" data-a="export"><span>Daten sichern <small>· ${db.settings.lastBackup ? 'vor ' + Math.floor(daysAgo(db.settings.lastBackup)) + ' Tagen · ' + fmtDay(db.settings.lastBackup) + ', ' + fmtTime(db.settings.lastBackup) + ' Uhr' : 'nie gesichert'}</small></span>${ic('note', 17)}</button>`;
   const ws = weekStart(0), dd = [0, 0, 0, 0, 0, 0, 0]; db.trips.forEach(t => { const i = Math.floor((new Date(t.start) - ws) / 864e5); if (i >= 0 && i < 7) dd[i] += t.km; });
   const td = (new Date().getDay() + 6) % 7, ps = weekStart(1), pe = new Date(+ps + (td + 1) * 864e5);
   const prev = db.trips.filter(x => { const d = new Date(x.start); return d >= ps && d < pe; }).reduce((a, x) => a + x.km, 0), cur = weekKm(0);
@@ -1374,11 +1374,11 @@ function viewMehr() {
   <div class="sec">Daten</div>
   <div class="g2"><button class="pill" data-a="export">Sichern</button><button class="pill" data-a="import">Wiederherstellen</button></div>
   <input type="file" id="imp" accept="application/json" hidden>
-  <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDate(db.settings.lastBackup) + '.' : ''}</p>
+  <p class="mu">Alle Daten liegen nur auf diesem iPhone. Sichern öffnet das Teilen-Menü → „In Dateien sichern“ → iCloud Drive.${db.settings.lastBackup ? ' Letzte Sicherung: ' + fmtDay(db.settings.lastBackup) + ', ' + fmtTime(db.settings.lastBackup) + ' Uhr.' : ''}</p>
   <div class="sec">Weitere</div>
   <button class="actb" data-a="nfctoggle"><span>Schnellstart per NFC</span><span class="chev">${nfcOpen ? '‹' : '›'}</span></button>
   ${nfcOpen ? `<div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>` : ''}
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 25 · 21.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 26 · 21.11.2026</p>`;
 }
 let nfcOpen = false;
 function dockHTML() {
