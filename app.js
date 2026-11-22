@@ -110,11 +110,13 @@ function consumption() {
 const avgCons = () => { const c = consumption(); return c.length ? c.reduce((a, x) => a + x.l100, 0) / c.length : null; };
 /* Tankstand: letzte volle Tankung + Verbrauch × gefahrene km (Schätzung) */
 function tankState(extraKm = 0) {
-  const full = db.logs.filter(l => l.type === 'tank' && l.full && l.odo).sort((a, b) => b.odo - a.odo)[0];
-  if (!full) return null;
-  const used = Math.max(0, currentOdo() + extraKm - full.odo), l100 = avgCons() || 3.1, cap = db.settings.tank || 7;
-  const left = Math.max(0, cap - used * l100 / 100);
-  return { frac: left / cap, liters: left, range: left / l100 * 100 };
+  const full = db.logs.filter(l => l.type === 'tank' && l.full && l.odo).sort((a, b) => b.odo - a.odo)[0], fx = db.settings.tankFix;
+  let base = full ? { odo: full.odo, frac: 1 } : null;
+  if (fx && (!base || fx.odo >= base.odo)) base = fx;
+  if (!base) return null;
+  const used = Math.max(0, currentOdo() + extraKm - base.odo), l100 = avgCons() || 3.1, cap = db.settings.tank || 7;
+  const left = Math.max(0, cap * base.frac - used * l100 / 100);
+  return { frac: Math.min(1, left / cap), liters: left, range: left / l100 * 100 };
 }
 function weatherInfo(code) {
   if (code == null) return { t: '', wet: false };
@@ -1115,7 +1117,7 @@ function viewFahrt() {
   const avgDay = [1, 2, 3, 4].map(weekKm).reduce((a, b) => a + b, 0) / 28;
   h += `<div class="g2"><div class="t hero">${kh('route', 'Diese Woche', (db.trips.length && daysAgo(db.trips[db.trips.length - 1].start) >= 7 ? 'Ø ' + nf(avgDay, 1) + ' km/Tag' : ''))}<div class="hv"><b>${nf(cur, 0)}</b><small>km</small></div>${weekLine(dd, td, avgDay)}</div>
   <div class="t">${kh('speed', 'Gesamt')}<b>${nf(odo, 0)}</b><span>km</span></div>
-  <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + '<small> %</small>' : '–'}</b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km' : 'tippen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 52) : ''}</div></button></div>`;
+  <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="tankfix">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + '<small> %</small>' : '–'}</b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km' : 'tippen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 52) : ''}</div></button></div>`;
   h += gloveTile();
   if (fc && fc.wind != null) h += `<div class="card now">${kh('wind', 'Jetzt draußen', fc.gust >= 45 ? lamp(1).replace('bald', 'Böen') : '')}<div class="nw"><div><b>${fc.wind}<small> km/h</small></b><span class="info">Wind aus ${dirName(fc.wdir)} <svg width="13" height="13" viewBox="0 0 24 24" style="transform:rotate(${Math.round(fc.wdir + 180)}deg)" fill="none" stroke="#a8a8ae" stroke-width="2" stroke-linejoin="round"><path d="M12 3l7 17-7-4-7 4z"/></svg></span></div><div><b>${fc.gust}<small> km/h</small></b><span class="info">Böen</span></div><div><b>${nf(fc.temp, 0)}<small> °C</small></b><span class="info">${weatherInfo(fc.code).t}</span></div></div></div>`;
   if (prev || cur) {
@@ -1336,7 +1338,7 @@ function viewLogbuch() {
   const logs = db.logs.filter(l => lFilter === 'all' || l.type === lFilter).sort((a, b) => b.date.localeCompare(a.date) || (b.odo || 0) - (a.odo || 0));
   const chip = (k, l) => `<button class="c ${lFilter === k ? 'on' : ''}" data-a="lf" data-f="${k}">${l}</button>`;
   const ts = tankState();
-  return `  <div class="g2"><div class="t hero">${kh('fuel', 'Kosten')}<div class="hv"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><small>€ / 100 km</small></div></div><div class="t">${kh('drop', 'Verbrauch')}<b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km</span></div><button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="opentank">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + '<small> %</small>' : '–'}</b></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 46) : ''}</div></button></div>
+  return `  <div class="g2"><div class="t hero">${kh('fuel', 'Kosten')}<div class="hv"><b>${km && spent ? nf(spent / km * 100, 2) : '–'}</b><small>€ / 100 km</small></div></div><div class="t">${kh('drop', 'Verbrauch')}<b>${avgC ? nf(avgC, 1) : '–'}</b><span>l / 100 km</span></div><button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="tankfix">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + '<small> %</small>' : '–'}</b></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 46) : ''}</div></button></div>
   <div class="sec">Auswertung</div>
   ${(() => {
     const m0 = today().slice(0, 7), eurM = db.logs.filter(x => x.eur && x.date && x.date.slice(0, 7) === m0).reduce((a, x) => a + x.eur, 0);
@@ -1376,7 +1378,7 @@ function viewMehr() {
   <div class="sec">Weitere</div>
   <button class="actb" data-a="nfctoggle"><span>Schnellstart per NFC</span><span class="chev">${nfcOpen ? '‹' : '›'}</span></button>
   ${nfcOpen ? `<div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>` : ''}
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 24 · 21.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 25 · 21.11.2026</p>`;
 }
 let nfcOpen = false;
 function dockHTML() {
@@ -1536,7 +1538,15 @@ const actions = {
     else toast('Kompass ist aktiv');
   },
   maps() { const p = db.settings.parked; if (p) location.href = 'https://maps.apple.com/?daddr=' + p.lat + ',' + p.lon + '&dirflg=w'; },
-  opentank() { sub = 'tanken'; stations = null; render(); if (db.settings.tkKey) fetchStations(); },
+  tankfix() {
+    const ts = tankState();
+    openSheet('Tank', [{ n: 'pct', l: 'Füllstand jetzt (%)', type: 'number', v: ts ? Math.round(ts.frac * 100) : '' }, { n: 'cap', l: 'Tankgröße (Liter)', type: 'number', v: db.settings.tank || 7 }], o => {
+      if (o.cap > 0) db.settings.tank = o.cap;
+      if (o.pct != null && o.pct >= 0 && o.pct <= 100) db.settings.tankFix = { odo: currentOdo(), frac: o.pct / 100, at: new Date().toISOString() };
+    });
+    const gr = $('#sheetForm').querySelector('.grid'); if (gr) gr.insertAdjacentHTML('beforebegin', '<button type="button" data-a="opentank" class="sm" style="width:100%;margin-top:16px">Tankstellen in der Nähe</button>');
+  },
+  opentank() { closeSheet(); sub = 'tanken'; stations = null; render(); if (db.settings.tkKey) fetchStations(); },
   async ppexport() {
     const y = new Date().getFullYear(), D = commuteDays(y), km = Math.round(db.settings.pendelKm || 0);
     const txt = 'Datum;Entfernung einfach (km);Pauschale (EUR)\n' + D.map(d => d.split('-').reverse().join('.') + ';' + km + ';' + (km * .38).toFixed(2).replace('.', ',')).join('\n') + '\nSumme;' + D.length + ' Tage;' + (D.length * km * .38).toFixed(2).replace('.', ',');
