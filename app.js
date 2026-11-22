@@ -1378,7 +1378,7 @@ function viewMehr() {
   <div class="sec">Weitere</div>
   <button class="actb" data-a="nfctoggle"><span>Schnellstart per NFC</span><span class="chev">${nfcOpen ? '‹' : '›'}</span></button>
   ${nfcOpen ? `<div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>` : ''}
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 26 · 21.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 27 · 21.11.2026</p>`;
 }
 let nfcOpen = false;
 function dockHTML() {
