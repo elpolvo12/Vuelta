@@ -1001,6 +1001,8 @@ svg{max-width:100%}
 /* v24 */
 body::after{height:auto!important;bottom:0!important}
 #dock{pointer-events:none}#dock button,#dock .cta,#dock a,#dock .navrow{pointer-events:auto}
+/* Starten: kein Textauswahl-Menü beim langen Drücken (iOS) */
+#dock,#dock .drow,#dock .cta,.drow .cta.go{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .drow .cta:not(.go):not(.sec2),body.scrolled .drow .cta:not(.go):not(.sec2),body.scrolled .cta{background:rgba(255,214,90,.9)!important;color:#1a1204!important;border-color:transparent!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1.5px 5px rgba(255,250,230,.28),inset 0 0 12px rgba(255,245,210,.08)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
 .fb .g2 .t,.fb>.card{width:100%}
 details.fold{background:none!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border:0!important;padding:0!important}

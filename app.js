@@ -1658,6 +1658,8 @@ function init() {
   document.addEventListener('pointerdown', e => { const b = e.target.closest('.drow .cta.go'); if (!b || rec) return; lpFired = false; clearTimeout(lpT); lpT = setTimeout(() => { lpFired = true; openCap(); }, 550); });
   ['pointerup', 'pointercancel', 'pointermove'].forEach(n => document.addEventListener(n, e => { if (n === 'pointermove' && Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0) < 4) return; clearTimeout(lpT); }));
   document.addEventListener('click', e => { if (lpFired && e.target.closest('.drow .cta.go')) { e.stopPropagation(); e.preventDefault(); lpFired = false; } }, true);
+  /* Langes Drücken auf „Starten“ darf keine Textauswahl oder Kontextmenü auslösen */
+  ['selectstart', 'contextmenu'].forEach(n => document.addEventListener(n, e => { if (e.target.closest && e.target.closest('.drow .cta.go')) e.preventDefault(); }));
   document.addEventListener('change', e => {
     if (e.target.id === 'odoimg' && e.target.files[0]) return odoFromPhoto(e.target.files[0]);
     if (e.target.id !== 'imp' || !e.target.files[0]) return;
