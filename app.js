@@ -1,7 +1,7 @@
 'use strict';
 /* Vuelta – GTS Super 125 (2022). Alle Daten bleiben lokal im Browser (localStorage). */
 const KEY = 'vespa.logbuch.v1';
-const APP_VERSION = '1.3';   /* bei jeder Änderung hochzählen – zusammen mit version.json */
+const APP_VERSION = '28';   /* bei jeder Änderung hochzählen – zusammen mit version.json */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1359,7 +1359,7 @@ function viewMehr() {
   <div class="sec">Weitere</div>
   <button class="actb" data-a="nfctoggle"><span>Schnellstart per NFC</span><span class="chev">${nfcOpen ? '‹' : '›'}</span></button>
   ${nfcOpen ? `<div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>` : ''}
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 27 · 21.11.2026</p>`;
+  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version ${APP_VERSION} · 26.11.2026</p>`;
 }
 let nfcOpen = false;
 function dockHTML() {
