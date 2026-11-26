@@ -939,34 +939,18 @@ details[open]>summary .fch{transform:rotate(90deg)}
 .fb>:first-child{margin-top:0!important}
 details.month .fb>.card{margin-top:12px!important;padding:14px!important;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.02))!important}
 details.month .fb>.card::before{display:block!important}
-/* Handschuhe */
-.t.glv{display:block;width:100%;text-align:left;margin:12px 0}
-.glv .gl{display:flex;align-items:baseline;gap:6px;margin-top:8px;white-space:nowrap}
-.glv .gl b{font-size:26px;font-weight:700;color:#fff;letter-spacing:-.01em}
-.glv .gl small{font-size:13px;color:#98989f;text-transform:none}
-.glv .gb{height:5px;border-radius:3px;background:rgba(255,255,255,.12);margin-top:12px}
-.glv .gb i{display:block;height:5px;border-radius:3px;background:#a9d8c0}
-.glv.w1 .gb i{background:#ff9d4d}.glv.w2 .gb i{background:#ff7a1a}
-.glv .d{display:block;margin-top:8px;font-size:13px;color:#98989f;text-transform:none;letter-spacing:.01em}
-.glv .gw{margin-left:auto;font-style:normal;font-size:12px;font-weight:700;color:#ff9d4d;text-transform:none}
-.glv.w2 .gw{color:#ff7a1a}
-.glv .kh{display:flex;align-items:center;gap:8px}
 /* Einheiten: klein geschrieben, nie umbrechen */
-.t b,.hv b,.big,.tv b,.gl b{white-space:nowrap}
+.t b,.hv b,.big,.tv b{white-space:nowrap}
 .t small,.t b small,.big small,.hv small,.u,.t>span:not(.d):not(.l){text-transform:none!important;letter-spacing:.02em}
 .tripc .r{align-items:flex-start;gap:10px}
 .tripc .tl{min-width:0}
 .tripc .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-/* Fahrmodus: Handschuh-Kapsel, Abbiege- und Ankunftskarte */
-.gchip{position:absolute;right:14px;top:calc(env(safe-area-inset-top) + 50px);z-index:8;display:flex;align-items:center;gap:8px;padding:9px 14px 9px 11px;border-radius:999px;color:#fff;font:600 14px -apple-system,Helvetica,sans-serif;background:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -1px 0 rgba(255,255,255,.2);opacity:0;pointer-events:none;transition:opacity .45s;border:0}
-.gchip.show{opacity:1;pointer-events:auto}
-.gchip svg{stroke:#a9d8c0;width:19px;height:19px}.gchip.off svg{stroke:#98989f}
+/* Fahrmodus: Abbiege- und Ankunftskarte */
 .navc,.arrc{display:none;position:absolute;z-index:6;color:#fff;border-radius:16px;background:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -1px 0 rgba(255,255,255,.2);font-family:-apple-system,Helvetica,sans-serif}
 .navc[hidden],.arrc[hidden]{display:none!important}
 .navc b{display:block;font-size:24px;font-weight:700;line-height:1}.navc span{display:block;font-size:14px;color:rgba(255,255,255,.75);margin-top:3px}
 .arrc small{display:block;font-size:12px;font-weight:600;letter-spacing:.1em;color:rgba(255,255,255,.65)}.arrc b{font-size:22px;font-weight:700}.arrc span{font-size:14px;color:rgba(255,255,255,.75);margin-left:4px}
 @media (orientation:landscape) and (max-height:520px){
-  .gchip{top:62px;right:14px}
   .navc{display:flex;align-items:center;gap:12px;left:calc(100vh + 22px);top:12px;padding:8px 16px 8px 10px}
   .arrc{display:block;left:calc(100vh + 22px);bottom:12px;padding:8px 16px}
   .navc[hidden],.arrc[hidden]{display:none!important}
@@ -974,10 +958,8 @@ details.month .fb>.card::before{display:block!important}
 body.inmehr #tabs .ind{opacity:0!important}
 .rg b small,.t.tk .tv span,.t.tk .tv b,.t span.d,.t>span{text-transform:none!important;letter-spacing:.02em}
 .t.tk span,.t.tk .tv div span{text-transform:none!important}.t.tk b small{font-size:.5em;font-weight:500}
-#drive .gchip,#drive .navc,#drive .arrc{position:absolute!important;grid-row:auto!important;grid-column:auto!important;width:auto!important;margin:0!important}
-#drive .gchip{right:14px!important;left:auto!important;top:calc(env(safe-area-inset-top) + 50px)!important;bottom:auto!important}
+#drive .navc,#drive .arrc{position:absolute!important;grid-row:auto!important;grid-column:auto!important;width:auto!important;margin:0!important}
 @media (orientation:landscape) and (max-height:520px){
-  #drive .gchip{top:62px!important;right:14px!important}
   #drive .navc{left:calc(100vh + 22px)!important;top:12px!important;right:auto!important;bottom:auto!important}
   #drive .arrc{left:calc(100vh + 22px)!important;bottom:12px!important;top:auto!important;right:auto!important}
 }

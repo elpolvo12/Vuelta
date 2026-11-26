@@ -43,7 +43,6 @@ const IP = {
   play: '<path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
-  glove: '<path d="M7 21v-4.5L4.6 11.8c-.5-1 .9-1.9 1.7-1.1L8 12V5.2c0-1.1 1.6-1.1 1.6 0V10h.4V3.8c0-1.1 1.6-1.1 1.6 0V10h.4V4.6c0-1.1 1.6-1.1 1.6 0V10h.4V6.4c0-1.1 1.6-1.1 1.6 0V15c0 3-1.5 4.2-3 4.7V21z"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M10.3 2.8h3.4l.5 2.4 1.7.7 2.1-1.3 2.4 2.4-1.3 2.1.7 1.7 2.4.5v3.4l-2.4.5-.7 1.7 1.3 2.1-2.4 2.4-2.1-1.3-1.7.7-.5 2.4h-3.4l-.5-2.4-1.7-.7-2.1 1.3-2.4-2.4 1.3-2.1-.7-1.7-2.4-.5v-3.4l2.4-.5.7-1.7-1.3-2.1 2.4-2.4 2.1 1.3 1.7-.7z"/>',
   work: '<rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2M3 13h18M11 13v1.5h2V13"/>',
   home: '<path d="M3.5 11L12 4l8.5 7M6 9.5V20h12V9.5M10 20v-5.5h4V20"/>'
@@ -54,7 +53,7 @@ const ic = (n, s = 15) => (s -= 1,  `<svg width="${s}" height="${s}" viewBox="0 
 function defaults() {
   return {
     trips: [], logs: [],
-    settings: { pendelKm: 9, odoBase: 0, odoDate: new Date().toISOString(), tank: 7, needle: true, work: null, home: null, parked: null, tkKey: '', lastPos: null, voice: false, glove: null },
+    settings: { pendelKm: 9, odoBase: 0, odoDate: new Date().toISOString(), tank: 7, needle: true, work: null, home: null, parked: null, tkKey: '', lastPos: null, voice: false },
     reminders: [
       { id: uid(), name: 'Ölwechsel', everyKm: 10000, everyMonths: 12, lastOdo: 0, lastDate: today() },
       { id: uid(), name: 'Inspektion', everyKm: 10000, everyMonths: 12, lastOdo: 0, lastDate: today() },
@@ -69,7 +68,7 @@ function load() {
   try { db = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch (e) { db = defaults(); }
   db.trips = db.trips || []; db.logs = db.logs || []; db.reminders = db.reminders || [];
   db.settings = Object.assign(defaults().settings, db.settings || {});
-  if (!db.settings.glove) db.settings.glove = { used: 63 * 60 };   /* Startwert: 30 + 33 min */
+  delete db.settings.glove;
   const op = db.settings.odoPhoto; if (op && (!op.t || Date.now() - new Date(op.t) > 864e5)) { delete db.settings.odoPhoto; try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { } }
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Speichern fehlgeschlagen'); } }
@@ -112,7 +111,9 @@ const avgCons = () => { const c = consumption(); return c.length ? c.reduce((a, 
 function tankState(extraKm = 0) {
   const full = db.logs.filter(l => l.type === 'tank' && l.full && l.odo).sort((a, b) => b.odo - a.odo)[0], fx = db.settings.tankFix;
   let base = full ? { odo: full.odo, frac: 1 } : null;
-  if (fx && (!base || fx.odo >= base.odo)) base = fx;
+  /* Manuelle Korrektur gilt, solange sie jünger ist als die letzte volle Tankung (Zeit aus der Eintrags-ID; ohne lesbare ID zählt der Kilometerstand) */
+  const born = l => parseInt(String(l.id || '').slice(0, 8), 36) || 0;
+  if (fx && (!base || (born(full) ? Date.parse(fx.at) >= born(full) : fx.odo >= base.odo))) base = fx;
   if (!base) return null;
   const used = Math.max(0, currentOdo() + extraKm - base.odo), l100 = avgCons() || 3.1, cap = db.settings.tank || 7;
   const left = Math.max(0, cap * base.frac - used * l100 / 100);
@@ -282,7 +283,7 @@ function onPos(p) {
 }
 async function startTrip() {
   if (!navigator.geolocation) return toast('Kein GPS verfügbar');
-  rec = { state: 'ready', route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null, stillSince: null, target: null, glove: true, gUntil: Date.now() + 9000 };
+  rec = { state: 'ready', route: [], lastRt: null, stop: 0, start: new Date().toISOString(), m: 0, zm: [0, 0, 0], speed: 0, max: 0, last: null, weather: null, acc: null, hist: [], heading: null, upd: 0, aqi: null, stillSince: null, target: null };
   clearInterval(autoT); autoT = setInterval(autoTick, 1000); setTimeout(pricePing, 4000);
   watchId = navigator.geolocation.watchPosition(onPos, e => toast('GPS: ' + (e.code === 1 ? 'Zugriff verweigert' : 'kein Signal')), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
   try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (e) { }
@@ -299,7 +300,6 @@ function goTrip(pt) {
   rec.startPos = { lat: pt.lat, lon: pt.lon };
   const w = db.settings.work, h = db.settings.home, near = q => q && hav(rec.startPos, q) < 1500;
   rec.target = near(h) && w ? w : near(w) && h ? h : (w && !h && !near(w)) ? w : (h && !w && !near(h)) ? h : null;
-  { const tw = rec.weather || lastWeather; if (tw && tw.temp >= 15 && !rec.gTouched) { rec.glove = false; rec.gWarm = Math.round(tw.temp); } rec.gUntil = Date.now() + 7000; }
   hap(2); toast('Aufnahme läuft'); say('Fahrt gestartet');
 }
 /* Stillstand: nach 1 min Pause, nach weiteren 5 min automatisch beenden (Ende = Zeitpunkt des Anhaltens) */
@@ -349,7 +349,6 @@ function stopTrip(endAt) {
     max: Math.round(r.max), avg: Math.round(km / (dur / 3600)), temp: r.weather ? r.weather.temp : null, code: r.weather ? r.weather.code : null,
     commute: km > pk * 0.6 && km < pk * 1.6, zk: r.zm.map(x => Math.round(x / 10) / 100), stops: (r.stops || []).slice(0, 200), spark: sp
   };
-  if (r.glove && db.settings.glove) db.settings.glove.used += Math.round(dur);
   db.trips.unshift(trip); save(); toast('Fahrt gespeichert: ' + nf(km) + ' km'); render();
   nameTrip(trip).then(() => render());
 }
@@ -499,12 +498,10 @@ function mountDrive() {
 <div class="endw endb"><div id="endBtn"><svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="25" fill="none" stroke="#333" stroke-width="3"/><circle id="endP" cx="27" cy="27" r="25" fill="none" stroke="#e0242c" stroke-width="3" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="157" transform="rotate(-90 27 27)"/></svg><svg class="haz" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#ff2d2d" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3.2 22 20.5H2z"/><path d="M12 9.5 16.6 17.6H7.4z" stroke-width="1.6"/></svg></div><small>2 S HALTEN · BEENDEN</small></div>
   <img class="dlogo" src="vuelta-logo.png" alt="Vuelta">
   <div id="dMap"></div>
-  <button id="gchip" class="gchip" type="button"></button>
   <div class="navc" id="navc" hidden></div><div class="arrc" id="arrc" hidden></div>
 `;
   $('#dSvc').addEventListener('click', e => { const b = e.target.closest('.ib'); if (!b) return; const nm = b.dataset.sv, pop = $('#dPop'); clearTimeout(drv.pt); if (drv.pop === nm) { drv.pop = null; pop.hidden = true; return; } drv.pop = nm; const inf = svcInfo(nm); pop.innerHTML = `<b>${nm}</b><span>${inf ? inf.text : ''}</span>`; pop.hidden = false; drv.pt = setTimeout(() => { drv.pop = null; pop.hidden = true; }, 6000); });
   $('#dBox').appendChild($('#dSvc'));
-  G('gchip').addEventListener('click', e => { e.stopPropagation(); if (!rec) return; rec.glove = !rec.glove; rec.gTouched = true; rec.gWarm = 0; rec.gUntil = Date.now() + 4000; hap(1); gloveChip(); });
   driveMap(); navStart(); buildDial(); fitDrive(); setTimeout(fitDrive, 400); setTimeout(fitDrive, 1500); window.onresize = fitDrive;
   const btn = $('#endBtn'), off = () => { if (drv.hold) { drv.hold = 0; drv.hs = 0; $('#endBtn').style.transform = ''; } };
   btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drv.hold = performance.now(); drv.hs = 0; hap(1); });
@@ -530,14 +527,6 @@ function driveMap() {
   }).catch(() => { });
 }
 
-/* Handschuh-Kapsel: erscheint beim Start kurz, danach weg */
-function gloveChip() {
-  const c = G('gchip'); if (!c || !rec) return;
-  const on = !!rec.glove, show = Date.now() < (rec.gUntil || 0);
-  const t = on ? 'Handschuhe an' : 'Handschuhe aus' + (rec.gWarm ? ' · ' + rec.gWarm + ' °C' : '');
-  if (c.dataset.t !== t) { c.dataset.t = t; c.innerHTML = ic('glove', 19) + '<span>' + t + '</span>'; }
-  c.classList.toggle('off', !on); c.classList.toggle('show', show);
-}
 /* Querformat: nächste Abbiegung und Ankunft aus der bekannten Strecke */
 const brg = (a, b) => bearing(a, b);
 const angD = (a, b) => ((b - a + 540) % 360) - 180;
@@ -702,7 +691,6 @@ function driveSecond(stale) {
   const now = new Date(), sec = rec.state === 'ready' ? 0 : (now - new Date(rec.start)) / 1000;
   const rl = G('dRec'); if (rl) { const st = rec.state === 'ready' ? 'BEREIT' : rec.state === 'pause' ? 'PAUSE' : 'AUFN.'; if (rl.dataset.s !== st) { rl.dataset.s = st; rl.className = 'rec ' + rec.state; rl.innerHTML = '<i></i>' + st; } }
   const et = G('dEta'); if (et) et.textContent = etaText();
-  gloveChip();
   if (rec.state !== 'ready' && now - (rec.lastSample || 0) >= 5000) { rec.lastSample = +now; rec.hist.push({ t: +now, v: Math.round(stale ? 0 : rec.speed) }); if (stale || rec.speed < 3) rec.stop += 5; }
   const avg = rec.m > 0 ? Math.round(rec.m / sec * 3.6) : 0;
   G('dClock').textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -1093,13 +1081,6 @@ function costTiles() {
 /* Aufklappbare Gruppen: zugeklappt eine Zeile mit der wichtigsten Zahl */
 const foldOpen = new Set();
 const fold = (icon, title, sum, body) => `<details class="card fold" data-k="${esc(title)}"${foldOpen.has(title) ? ' open' : ''}><summary>${kh(icon, title)}<em class="fs">${sum}</em><span class="fch">›</span></summary><div class="fb">${body}</div></details>`;
-const GLV_MAX = 9000, GLV_WARN = 7200;   /* Akku 2,5 h, Hinweis ab 2 h */
-const hm = sec => { const m = Math.max(0, Math.round(sec / 60)); return m >= 60 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min' : m + ' min'; };
-function gloveTile() {
-  const u = db.settings.glove ? db.settings.glove.used : 0, left = GLV_MAX - u, lv = u >= GLV_MAX ? 2 : u >= GLV_WARN ? 1 : 0;
-  const msg = lv === 2 ? 'Handschuhe laden' : lv === 1 ? 'Handschuhe laden bald' : '';
-  return `<button class="t glv${lv ? ' w' + lv : ''}" data-a="glove"><div class="kh">${ic('glove', 15)}<span>Handschuhe</span>${msg ? `<em class="gw">${msg}</em>` : ''}</div><div class="gl"><b>${lv === 2 ? 'Laden' : hm(left)}</b><small>${lv === 2 ? '' : 'übrig'}</small></div><div class="gb"><i style="width:${Math.min(100, Math.round(u / GLV_MAX * 100))}%"></i></div><span class="d">${hm(u)} seit dem Laden</span></button>`;
-}
 function viewFahrt() {
   if (sub === 'finden') return viewFinden();
   if (sub === 'tanken') return viewTanken();
@@ -1118,7 +1099,6 @@ function viewFahrt() {
   h += `<div class="g2"><div class="t hero">${kh('route', 'Diese Woche', (db.trips.length && daysAgo(db.trips[db.trips.length - 1].start) >= 7 ? 'Ø ' + nf(avgDay, 1) + ' km/Tag' : ''))}<div class="hv"><b>${nf(cur, 0)}</b><small>km</small></div>${weekLine(dd, td, avgDay)}</div>
   <div class="t">${kh('speed', 'Gesamt')}<b>${nf(odo, 0)}</b><span>km</span></div>
   <button class="t tk ${ts && ts.frac < .25 ? 'low' : ''}" data-a="tankfix">${kh('fuel', 'Tank')}<div class="tv"><div><b>${ts ? Math.round(ts.frac * 100) + '<small> %</small>' : '–'}</b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km' : 'tippen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 52) : ''}</div></button></div>`;
-  h += gloveTile();
   if (fc && fc.wind != null) h += `<div class="card now">${kh('wind', 'Jetzt draußen', fc.gust >= 45 ? lamp(1).replace('bald', 'Böen') : '')}<div class="nw"><div><b>${fc.wind}<small> km/h</small></b><span class="info">Wind aus ${dirName(fc.wdir)} <svg width="13" height="13" viewBox="0 0 24 24" style="transform:rotate(${Math.round(fc.wdir + 180)}deg)" fill="none" stroke="#a8a8ae" stroke-width="2" stroke-linejoin="round"><path d="M12 3l7 17-7-4-7 4z"/></svg></span></div><div><b>${fc.gust}<small> km/h</small></b><span class="info">Böen</span></div><div><b>${nf(fc.temp, 0)}<small> °C</small></b><span class="info">${weatherInfo(fc.code).t}</span></div></div></div>`;
   if (prev || cur) {
     const pc = prev ? Math.round((cur - prev) / prev * 100) : 0;
@@ -1171,7 +1151,7 @@ function finderUpdate() {
 /* Tanken */
 function viewTanken() {
   const ts = tankState(); let h = '';
-  h += `<div class="card tkh ${ts && ts.frac < .25 ? 'low' : ''}">${kh('fuel', 'Tank', ts ? 'geschätzt' : '')}<div class="tkm"><div><b>${ts ? Math.round(ts.frac * 100) : '–'}<small>${ts ? ' %' : ''}</small></b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km Reichweite · ' + nf(ts.liters, 1) + ' l' : 'Volle Tankung eintragen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 58) : ''}</div></div>`;
+  h += `<div class="card tkh ${ts && ts.frac < .25 ? 'low' : ''}">${kh('fuel', 'Tank', ts ? 'geschätzt' : '')}<div class="tkm"><div><b>${ts ? Math.round(ts.frac * 100) : '–'}<small>${ts ? ' %' : ''}</small></b><span>${ts ? '≈ ' + Math.round(ts.range) + ' km Reichweite · ' + nf(ts.liters, 1) + ' l' : 'Volle Tankung eintragen'}</span></div>${ts ? ring(ts.frac, ts.frac < .25 ? '#ff7a1a' : '#3a9466', 58) : ''}</div><button class="sm" type="button" data-a="tankfix" style="width:100%;margin-top:14px">Füllstand korrigieren</button></div>`;
   h += bestTimeCard();
   const srt = db.settings.tkSort || 'price';
   h += `<div class="sec">Tankstellen in der Nähe</div>`;
@@ -1357,7 +1337,7 @@ function viewLogbuch() {
     if (l.type === 'service') { d = esc(l.text); right = l.eur ? nf(l.eur, 2) + ' €' : ''; }
     if (l.type === 'reifen') d = `vorne ${nf(l.front, 1)} bar · hinten ${nf(l.rear, 1)} bar`;
     if (l.type === 'notiz') d = esc(l.text);
-    return `<div class="card">${kh(LT[l.type][1], LT[l.type][0], fmtDate(l.date) + (l.odo ? ' · ' + nf(l.odo, 0) + ' km' : ''))}<div class="r"><b style="font-size:22px">${right}</b></div><div style="margin-top:6px;font-size:14px;letter-spacing:.04em">${d}</div><div style="text-align:right"><button class="ghost" style="font-size:11px;letter-spacing:.14em" data-a="dellog" data-id="${l.id}">Löschen</button></div></div>`;
+    return `<div class="card">${kh(LT[l.type][1], LT[l.type][0], fmtDate(l.date) + (l.odo ? ' · ' + nf(l.odo, 0) + ' km' : ''))}<div class="r"><b style="font-size:22px">${right}</b></div><div style="margin-top:6px;font-size:14px;letter-spacing:.04em">${d}</div><div style="text-align:right">${l.type === 'tank' ? `<button class="ghost" style="font-size:11px;letter-spacing:.14em;margin-right:14px" data-a="edittank" data-id="${l.id}">Bearbeiten</button>` : ''}<button class="ghost" style="font-size:11px;letter-spacing:.14em" data-a="dellog" data-id="${l.id}">Löschen</button></div></div>`;
   }).join('') : '<p class="mu">Noch keine Einträge.</p>'}`;
 }
 function viewMehr() {
@@ -1517,13 +1497,6 @@ const actions = {
   start() { if (capOpen) return closeCap(); startTrip(); }, stop: stopTrip,
   gear() { tab = 'mehr'; sub = null; render(); window.scrollTo(0, 0); },
   nfctoggle() { nfcOpen = !nfcOpen; render(); },
-  glove() {
-    if (!db.settings.glove) db.settings.glove = { used: 63 * 60 };
-    const g = db.settings.glove;
-    openSheet('Handschuhe', [{ n: 'min', l: 'Genutzt seit dem Laden (Minuten) · Akku hält 150 min', type: 'number', v: Math.round(g.used / 60) }], o => { if (o.min != null) g.used = Math.max(0, Math.round(o.min * 60)); });
-    const gr = $('#sheetForm').querySelector('.grid'); if (gr) gr.insertAdjacentHTML('beforebegin', '<button type="button" data-a="gloveload" class="pri" style="width:100%;margin-top:16px">Geladen</button>');
-  },
-  gloveload() { db.settings.glove.used = 0; save(); closeSheet(); render(); toast('Handschuhe geladen'); },
   navwork() { closeCap(); navTo('work', 'Arbeit'); }, navhome() { closeCap(); navTo('home', 'Zuhause'); }, navfree() { closeCap(); actions.navfree2(); },
   finden() { sub = 'finden'; render(); },
   back() { if (tab === 'mehr') tab = 'fahrt'; sub = null; render(); window.scrollTo(0, 0); },
@@ -1570,6 +1543,12 @@ const actions = {
     const f = $('#sheetForm');
     f.innerHTML = `<h1>Neuer Eintrag</h1><div style="display:grid;gap:10px;margin-top:14px">${['tank', 'service', 'reifen', 'notiz'].map(k => `<button type="button" data-a="${k}" style="text-align:left;display:flex;gap:12px;align-items:center">${ic(LT[k][1], 20)} ${LT[k][0]}</button>`).join('')}</div><div class="grid" style="margin-top:16px"><button type="button" data-x="cancel">Abbrechen</button></div>`;
     f.onsubmit = e => e.preventDefault(); $('#sheet').hidden = false;
+  },
+  /* Tank-Eintrag korrigieren: Felder ändern; die Tankstand-Schätzung rechnet danach neu, eine alte manuelle Korrektur wird verworfen */
+  edittank(el) {
+    const l = db.logs.find(x => x.id === el.dataset.id); if (!l) return;
+    openSheet('Tankeintrag bearbeiten', [{ n: 'date', l: 'Datum', type: 'date', v: l.date }, { n: 'liters', l: 'Liter', type: 'number', v: l.liters }, { n: 'eur', l: 'Betrag (€)', type: 'number', v: l.eur || '' }, { n: 'odo', l: 'Kilometerstand beim Tanken', type: 'number', v: l.odo || '' }, { n: 'full', l: 'Voll getankt', type: 'check', v: l.full }],
+      o => { if (!o.liters) return toast('Liter fehlen'); Object.assign(l, { date: o.date || l.date, liters: o.liters, eur: o.eur || 0, odo: o.odo, full: o.full }); delete db.settings.tankFix; toast('Eintrag geändert'); });
   },
   tank() { openSheet('Tanken', [{ n: 'date', l: 'Datum', type: 'date', v: today() }, { n: 'liters', l: 'Liter', type: 'number' }, { n: 'eur', l: 'Betrag (€)', type: 'number' }, odoField(), { n: 'full', l: 'Voll getankt', type: 'check', v: true }],
     o => { if (!o.liters) return toast('Liter fehlen'); db.logs.push({ id: uid(), type: 'tank', date: o.date || today(), liters: o.liters, eur: o.eur || 0, odo: o.odo, full: o.full }); setOdo(o.odo); toast('Gespeichert'); }); },
