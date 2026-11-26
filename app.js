@@ -1,6 +1,7 @@
 'use strict';
 /* Vuelta – GTS Super 125 (2022). Alle Daten bleiben lokal im Browser (localStorage). */
 const KEY = 'vespa.logbuch.v1';
+const APP_VERSION = '1.1';   /* bei jeder Änderung hochzählen */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1346,6 +1347,7 @@ function viewMehr() {
   <div class="card">
     <div class="srow"><span>Kilometerstand</span><em>${nf(currentOdo(), 0)} km</em></div><div class="srow"><span>Pendelstrecke</span><em>${nf(db.settings.pendelKm, 1)} km</em></div><div class="srow"><span>Tankgröße</span><em>${nf(db.settings.tank, 1)} l</em></div><div class="srow"><span>Nadel im Tacho</span><em>${db.settings.needle ? 'An' : 'Aus'}</em></div><div class="srow"><span>Tankerkönig-Schlüssel</span><em>${db.settings.tkKey ? 'Gesetzt' : '–'}</em></div>
     <div class="srow"><span>Sprachansage</span><button class="sm" data-a="voice">${db.settings.voice ? 'An' : 'Aus'}</button></div>
+    <div class="srow"><span>Version</span><em>${APP_VERSION}</em></div>
     <div style="margin-top:12px;display:flex;gap:8px"><button class="sm" data-a="settings">Ändern</button><button class="sm" data-a="odophoto">${ic('speed', 13)} Tacho fotografieren</button></div>
     ${op ? `<div class="odoph"><img src="${op.img}" alt="Tacho"><span class="l">Abgleich ${fmtDate(op.t)} · ${nf(op.odo || 0, 0)} km</span></div>` : ''}
   </div>
