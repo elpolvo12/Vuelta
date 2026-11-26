@@ -1,7 +1,7 @@
 'use strict';
 /* Vuelta – GTS Super 125 (2022). Alle Daten bleiben lokal im Browser (localStorage). */
 const KEY = 'vespa.logbuch.v1';
-const APP_VERSION = '1.1';   /* bei jeder Änderung hochzählen */
+const APP_VERSION = '1.2';   /* bei jeder Änderung hochzählen – zusammen mit version.json */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1360,7 +1360,7 @@ function viewMehr() {
   <div class="sec">Weitere</div>
   <button class="actb" data-a="nfctoggle"><span>Schnellstart per NFC</span><span class="chev">${nfcOpen ? '‹' : '›'}</span></button>
   ${nfcOpen ? `<div class="card nfc">${kh('vespa', 'Fahrt per NFC starten')}<div class="rt">iPhone an den Sticker halten, und der Fahrmodus startet.</div><ol class="stp"><li>NFC-Sticker an Lenker oder Helmfach kleben</li><li>Kurzbefehle › Automation › NFC › Sticker scannen</li><li>Aktion „URL öffnen“ mit dem Link unten, „Sofort ausführen“ an</li></ol><div class="r" style="margin-top:12px;gap:8px"><button class="sm" data-a="nfccopy">${ic('note', 13)} Link kopieren</button></div></div>` : ''}
-  <p class="mu" style="text-align:center;margin-top:18px">Vuelta · Version 27 · 21.11.2026</p>`;
+`;
 }
 let nfcOpen = false;
 function dockHTML() {
@@ -1379,13 +1379,21 @@ function dockHTML() {
   return '';
 }
 /* Neue Version verfügbar: Hinweis oben mit Neu-laden-Button */
-function updBar() {
+function updBar(v) {
   try { if (rec && rec.state === 'go') return; } catch (e) { }
   if (document.getElementById('upd')) return;
   const b = document.createElement('div'); b.id = 'upd';
-  b.innerHTML = '<span>Neue Version verfügbar</span><button type="button">Neu laden</button>';
-  b.querySelector('button').onclick = () => location.reload();
+  b.innerHTML = '<span>Neue Version verfügbar' + (typeof v === 'string' ? ' (' + esc(v) + ')' : '') + '</span><button type="button">Neu laden</button>';
+  /* Dateien am Browser-Cache vorbei neu holen, dann neu laden */
+  b.querySelector('button').onclick = async () => { try { await Promise.all(['app.js', 'style.css', 'index.html', 'version.json'].map(f => fetch(f, { cache: 'reload' }))); } catch (e) { } location.reload(); };
   document.body.appendChild(b);
+}
+/* Vergleicht die Versionsnummer in version.json mit der laufenden App */
+async function checkVersion() {
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+    const j = await r.json(); if (j && j.version && String(j.version) !== APP_VERSION) updBar(String(j.version));
+  } catch (e) { }
 }
 const ORD = ['fahrt', 'fahrten', 'logbuch']; let sliding = false;
 function slideTo(nt, dir, back) {
@@ -1684,6 +1692,7 @@ function init() {
       document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => { }); });
     }).catch(() => { });
   }
+  if (location.protocol.startsWith('http')) { checkVersion(); document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); }); }
   render();
 }
 function load2() { db.reminders = db.reminders || []; db.settings = Object.assign(defaults().settings, db.settings || {}); save(); render(); }
